@@ -1,0 +1,9 @@
+flask
+flask-cors
+flask-limiter>=3.0.0
+flask-sqlalchemy
+python-dotenv
+openai
+pydantic
+alembic
+sqlalchemy
