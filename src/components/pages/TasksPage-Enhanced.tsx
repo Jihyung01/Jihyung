@@ -44,7 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { enhancedAPI, type Task } from '@/lib/enhanced-api';
+import { enhancedAPI, type Task } from '@/lib/enhanced-api.ts';
 import { format, isToday, isTomorrow, isPast } from 'date-fns';
 import { ko } from 'date-fns/locale';
 

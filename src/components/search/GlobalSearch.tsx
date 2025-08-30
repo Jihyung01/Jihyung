@@ -6,7 +6,7 @@ import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
 import { Card, CardContent } from '../ui/card'
-import { Note, Task, CalendarEvent } from '@/lib/enhanced-api'
+import { Note, Task, CalendarEvent } from '@/lib/enhanced-api.ts'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 

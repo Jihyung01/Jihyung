@@ -30,7 +30,7 @@ import {
 import { format, formatDistanceToNow, isPast, isToday, isTomorrow, isThisWeek } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
-import enhancedAPI, { type Task } from '@/lib/enhanced-api';
+import enhancedAPI, { type Task } from '@/lib/enhanced-api.ts';
 
 interface TasksPageProps {
   onTaskCreated?: (task: Task) => void;

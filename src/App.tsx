@@ -65,8 +65,8 @@ import { useAIOrchestrator } from './hooks/useAIOrchestrator'
 import { useAnalytics } from './hooks/useAnalytics'
 
 // API
-import enhancedAPI from '@/lib/enhanced-api'
-import { Note, Task, CalendarEvent, AIInsight } from '@/lib/enhanced-api'
+import enhancedAPI from '@/lib/enhanced-api.ts'
+import { Note, Task, CalendarEvent, AIInsight } from '@/lib/enhanced-api.ts'
 
 // Types
 interface AppState {
