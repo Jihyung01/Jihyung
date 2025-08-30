@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { House, File, Calendar as CalendarIcon, Target } from '@phosphor-icons/react'
 import { Button } from './ui/button'
-import { cn } from '../lib/utils'
+import { cn } from '@/lib/utils'
 
 interface RouterProps {
   currentPage: string

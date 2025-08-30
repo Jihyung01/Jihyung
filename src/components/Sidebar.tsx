@@ -8,7 +8,7 @@ import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
-import { cn } from '../lib/utils'
+import { cn } from '@/lib/utils'
 
 interface SidebarProps {
   isCollapsed: boolean
