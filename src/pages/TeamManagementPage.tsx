@@ -43,7 +43,7 @@ import {
 } from '../components/ui/select';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import enhancedAPI from '../lib/enhanced-api';
+import enhancedAPI from '@/lib/enhanced-api';
 
 interface User {
   id: string;

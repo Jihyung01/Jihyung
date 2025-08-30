@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Slider } from '../ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Note, Task, CalendarEvent } from '../../lib/enhanced-api'
+import { Note, Task, CalendarEvent } from '@/lib/enhanced-api'
 
 interface KnowledgeGraphProps {
   notes: Note[]

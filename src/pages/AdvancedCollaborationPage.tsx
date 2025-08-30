@@ -36,7 +36,7 @@ import {
   DialogTrigger,
 } from '../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import enhancedAPI from '../lib/enhanced-api';
+import enhancedAPI from '@/lib/enhanced-api';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 

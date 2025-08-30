@@ -17,7 +17,7 @@ import {
   Star,
   AlertCircle
 } from 'lucide-react';
-import enhancedAPI, { type DailyBrief as DailyBriefType, type Task, type Note, type CalendarEvent } from '../lib/enhanced-api';
+import enhancedAPI, { type DailyBrief as DailyBriefType, type Task, type Note, type CalendarEvent } from '@/lib/enhanced-api';
 import { format, isToday, startOfDay, endOfDay } from 'date-fns';
 import { ko } from 'date-fns/locale';
 

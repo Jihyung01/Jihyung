@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import enhancedAPI from '../lib/enhanced-api'
+import enhancedAPI from '@/lib/enhanced-api'
 
 export interface AIResponse {
   success: boolean

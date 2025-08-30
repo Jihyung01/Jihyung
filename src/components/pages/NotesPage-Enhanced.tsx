@@ -51,7 +51,7 @@ import {
 } from '../ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import enhancedAPI, { type Note } from '../../lib/enhanced-api';
+import enhancedAPI, { type Note } from '@/lib/enhanced-api';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';

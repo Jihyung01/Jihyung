@@ -17,7 +17,7 @@ import {
   Search,
   Sparkles
 } from 'lucide-react';
-import { enhancedAPI } from '../lib/enhanced-api';
+import { enhancedAPI } from '@/lib/enhanced-api';
 
 interface AIFeaturesProps {
   onTasksExtracted?: (tasks: any[]) => void;

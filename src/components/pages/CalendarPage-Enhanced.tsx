@@ -33,7 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
-import enhancedAPI, { type CalendarEvent } from '../../lib/enhanced-api';
+import enhancedAPI, { type CalendarEvent } from '@/lib/enhanced-api';
 import { 
   format, 
   startOfMonth, 

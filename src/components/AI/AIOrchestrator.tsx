@@ -7,7 +7,7 @@ import { Textarea } from '../ui/textarea'
 import { Badge } from '../ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { ScrollArea } from '../ui/scroll-area'
-import { Note, Task, CalendarEvent } from '../../lib/enhanced-api'
+import { Note, Task, CalendarEvent } from '@/lib/enhanced-api'
 
 interface AIOrchestratorProps {
   notes: Note[]

@@ -15,7 +15,7 @@ import {
   Loader2,
   Plus
 } from 'lucide-react';
-import { enhancedAPI } from '../lib/enhanced-api';
+import { enhancedAPI } from '@/lib/enhanced-api';
 import { toast } from 'sonner';
 
 interface AIAssistantProps {
