@@ -1,6 +1,5 @@
 // src/hooks/useOfflineSync.ts
 import { useState, useEffect, useCallback } from 'react'
-import { openDB, IDBPDatabase } from 'idb'
 
 // Types for the database schema
 interface PendingSyncItem {
