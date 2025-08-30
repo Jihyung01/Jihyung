@@ -101,7 +101,7 @@ export function HealthStatus({ className }: HealthStatusProps) {
               <p>백엔드 서버에 연결할 수 없습니다.</p>
               <p>다음을 확인해주세요:</p>
               <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>백엔드 서버가 실행 중인지 (포트 5000)</li>
+                <li>백엔드 서버가 실행 중인지 (포트 8006)</li>
                 <li>네트워크 연결 상태</li>
                 <li>환경 변수 설정</li>
               </ul>

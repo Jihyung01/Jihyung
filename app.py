@@ -27,7 +27,7 @@ class Config:
         self.OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
         self.DISABLE_AUTH = os.getenv('DISABLE_AUTH', 'true').lower() == 'true'
         self.API_TOKEN = os.getenv('API_TOKEN', 'dev-123')
-        self.PORT = int(os.getenv('PORT', 5000))
+        self.PORT = int(os.getenv('PORT', 8006))
         self.CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
         self.RATE_LIMIT = os.getenv('RATE_LIMIT', '50 per minute')
         self.USE_OPENAI = bool(self.OPENAI_API_KEY)

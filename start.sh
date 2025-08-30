@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# AI Second Brain - Startup Script
+#    echo "VITE_API_BASE=http://localhost:8006" > .env.localAI Second Brain - Startup Script
 echo "🚀 Starting AI Second Brain..."
 
 # Check if .env exists
@@ -34,7 +34,7 @@ alembic upgrade head
 echo "🌟 Starting servers..."
 
 # Start backend in background
-echo "Starting Flask backend on http://localhost:5000..."
+echo "Starting Flask backend on http://localhost:8006..."
 python app.py &
 BACKEND_PID=$!
 
@@ -49,8 +49,8 @@ FRONTEND_PID=$!
 echo ""
 echo "✅ AI Second Brain is running!"
 echo "📊 Frontend: http://localhost:5173"
-echo "🔧 Backend API: http://localhost:5000"
-echo "📖 API Docs: http://localhost:5000/api/health"
+echo "🔧 Backend API: http://localhost:8006"
+echo "📖 API Docs: http://localhost:8006/api/health"
 echo ""
 echo "Press Ctrl+C to stop all services"
 

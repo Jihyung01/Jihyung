@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "concurrently -k \"npm:dev:fe\" \"npm:dev:be\"",
         "dev:fe": "vite --host --port 5177",
-        "dev:be": "python3 app.py",
+        "dev:be": "bash -c 'source backend_env/bin/activate && uvicorn backend.main_enhanced:app --host 0.0.0.0 --port 8006 --reload'",
         "build": "vite build",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",

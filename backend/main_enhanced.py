@@ -2339,166 +2339,51 @@ async def get_calendar_events(
     except Exception as e:
         logger.error(f"❌ Failed to get calendar events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get calendar events: {str(e)}")
-                        "description": task['description'] or "",
-                        "start": task['due_date'].isoformat() if task['due_date'] else None,
-                        "end": task['due_date'].isoformat() if task['due_date'] else None,
-                        "type": "task",
-                        "completed": bool(task['completed_at']),
-                        "priority": task['priority'],
-                        "status": task.get('status', 'pending'),
-                        "allDay": task.get('all_day', True)
-                    })
-                
-                logger.info(f"✅ Found {len(events)} calendar events from tasks")
-                return events  # Return events array directly, not wrapped in dict
-        else:
-            # In-memory fallback
-            user_tasks = [task for task in memory_storage.get("tasks", {}).values() 
-                         if task["user_id"] == current_user['id'] and 
-                         task.get("due_date") and 
-                         start_date <= datetime.fromisoformat(task["due_date"]).date() <= end_date]
-            
-            events = []
-            for task in user_tasks:
-                events.append({
-                    "id": task['id'],  # Use task ID directly
-                    "title": task['title'],
-                    "description": task.get('description', ''),
-                    "start": task['due_date'],
-                    "end": task['due_date'],
-                    "type": "task",
-                    "completed": task.get('completed', False),
-                    "priority": task.get('priority', 'medium'),
-                    "status": task.get('status', 'pending'),
-                    "allDay": task.get('all_day', True)
-                })
-            
-            logger.info(f"✅ Found {len(events)} calendar events from memory")
-            return events  # Return events array directly
-            
-    except Exception as e:
-        logger.error(f"❌ Error getting calendar events: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get calendar events: {str(e)}")
 
-@app.post("/api/calendar")
-async def create_calendar_event_simple(
-    event_data: dict,
-    current_user: dict = Depends(get_current_user)
-):
-    """Create a new calendar event - simple endpoint"""
+
+@app.post("/api/tasks/", response_model=dict)
+async def create_task(task: dict, current_user: dict = Depends(get_current_user)):
+    """Create a new task"""
     try:
-        logger.info(f"📅 Creating calendar event for user {current_user['id']}")
-        logger.info(f"📅 Event data: {event_data}")
-        
-        # Parse start and end dates properly - handle both start/end and start_at/end_at
-        start_date = event_data.get("start_at") or event_data.get("start")
-        end_date = event_data.get("end_at") or event_data.get("end", start_date)  # Use start as end if end is not provided
-        
-        # Convert to datetime objects if they're strings
-        if isinstance(start_date, str):
-            try:
-                # Handle both ISO format and simple date format
-                if 'T' in start_date:
-                    start_datetime = datetime.fromisoformat(start_date.replace('Z', '+00:00')).replace(tzinfo=None)
-                else:
-                    start_datetime = datetime.fromisoformat(start_date).replace(tzinfo=None)
-            except ValueError:
-                # Fallback to today's date
-                start_datetime = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
-        else:
-            start_datetime = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
-            
-        if isinstance(end_date, str):
-            try:
-                if 'T' in end_date:
-                    end_datetime = datetime.fromisoformat(end_date.replace('Z', '+00:00')).replace(tzinfo=None)
-                else:
-                    end_datetime = datetime.fromisoformat(end_date).replace(tzinfo=None)
-            except ValueError:
-                end_datetime = start_datetime.replace(hour=10)  # 1 hour after start
-        else:
-            end_datetime = start_datetime.replace(hour=10)
-        
-        # Create task data with proper dates
-        task_data = {
-            "title": event_data.get("title", "New Event"),
-            "description": event_data.get("description", ""),
-            "due_date": start_datetime,
-            "due_at": start_datetime,
-            "all_day": event_data.get("allDay", True),
-            "priority": "medium",
-            "status": "pending",
-            "location": event_data.get("location", ""),
-            "attendees": event_data.get("attendees", [])
-        }
+        task_id = str(uuid.uuid4())
+        now = datetime.utcnow()
         
         if db_pool is not None:
-            async with db_pool.acquire() as conn:
-                # First ensure user exists - create if doesn't exist
-                user_uuid = uuid.UUID(current_user['id']) if isinstance(current_user['id'], str) else current_user['id']
-                user_check_query = "SELECT id FROM users WHERE id = $1"
-                user_exists = await conn.fetchrow(user_check_query, user_uuid)
-                
-                if not user_exists:
-                    logger.info(f"🔄 User {user_uuid} not found, creating user")
-                    now_naive = datetime.now()  # timezone-naive for PostgreSQL
-                    user_insert_query = """
-                    INSERT INTO users (id, name, email, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5)
-                    """
-                    try:
-                        await conn.execute(
-                            user_insert_query,
-                            user_uuid,
-                            current_user.get('name', 'Demo User'),
-                            current_user.get('email', f'demo_{user_uuid}@example.com'),
-                            now_naive,
-                            now_naive
-                        )
-                        logger.info(f"✅ Created user {user_uuid}")
-                    except Exception as user_error:
-                        logger.warning(f"⚠️ Could not create user {user_uuid}: {user_error}")
-                
-                # Insert task with proper date handling
-                task_uuid = uuid.UUID(str(uuid.uuid4()))
-                now_naive = datetime.now()
-                
+            # Database creation logic
+            async with db_pool.acquire() as connection:
                 query = """
                 INSERT INTO tasks (id, user_id, title, description, due_date, all_day, priority, status, location, created_at, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                RETURNING id, title, description, due_date, all_day, priority, status, location, created_at
+                RETURNING *
                 """
-                result = await conn.fetchrow(
+                result = await connection.fetchrow(
                     query,
-                    task_uuid,
-                    user_uuid,
-                    task_data["title"],
-                    task_data["description"],
-                    start_datetime,  # Use parsed datetime
-                    task_data["all_day"],
-                    task_data["priority"],
-                    task_data["status"],
-                    task_data["location"],
-                    now_naive,
-                    now_naive
+                    uuid.UUID(task_id),
+                    uuid.UUID(current_user['id']),
+                    task["title"],
+                    task.get("description", ""),
+                    task.get("due_date"),
+                    task.get("all_day", True),
+                    task.get("priority", "medium"),
+                    task.get("status", "pending"),
+                    task.get("location", ""),
+                    now,
+                    now
                 )
                 
-                event = {
+                return {
                     "id": str(result['id']),
                     "title": result['title'],
                     "description": result['description'] or "",
-                    "start": result['due_date'].isoformat() if result['due_date'] else start_datetime.isoformat(),
-                    "end": result['due_date'].isoformat() if result['due_date'] else end_datetime.isoformat(),
-                    "allDay": result['all_day'],
+                    "due_date": result['due_date'].isoformat() if result['due_date'] else None,
+                    "all_day": result['all_day'],
                     "type": "task",
                     "priority": result['priority'],
                     "status": result['status'],
-                    "location": result.get('location', '') or task_data.get("location", ""),
-                    "attendees": task_data.get("attendees", [])
+                    "location": result.get('location', ''),
+                    "created_at": result['created_at'].isoformat(),
+                    "updated_at": result['updated_at'].isoformat()
                 }
-                
-                logger.info(f"✅ Created calendar event: {event['id']} with date {result['due_date']}")
-                return event
         else:
             # In-memory fallback
             if "tasks" not in memory_storage:
@@ -2631,100 +2516,7 @@ async def create_calendar_event(
     except Exception as e:
         logger.error(f"❌ Failed to create calendar event: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
-                
-                if not user_exists:
-                    logger.info(f"🔄 User {user_id} not found, creating user")
-                    now_naive = datetime.now()  # timezone-naive for PostgreSQL
-                    user_insert_query = """
-                    INSERT INTO users (id, name, email, created_at)
-                    VALUES ($1, $2, $3, $4)
-                    """
-                    try:
-                        await conn.execute(
-                            user_insert_query,
-                            user_id,
-                            current_user.get('name', f'demo_user_{str(user_id)[:8]}'),
-                            current_user.get('email', f'demo_{str(user_id)[:8]}@example.com'),
-                            now_naive
-                        )
-                        logger.info(f"✅ Created user {user_id}")
-                    except Exception as user_error:
-                        logger.warning(f"⚠️ Could not create user {user_id}: {user_error}")
-                        # Continue anyway, maybe user was created by another request
-                
-                # Parse due_date safely
-                due_date_value = None
-                if task_data.get("due_date"):
-                    try:
-                        # Handle different date formats
-                        date_str = task_data["due_date"]
-                        if 'T' in date_str:
-                            due_date_value = datetime.fromisoformat(date_str.replace('Z', '')).replace(tzinfo=None)
-                        else:
-                            due_date_value = datetime.fromisoformat(date_str).replace(tzinfo=None)
-                    except Exception as date_error:
-                        logger.warning(f"⚠️ Could not parse due_date {task_data['due_date']}: {date_error}")
-                
-                query = """
-                INSERT INTO tasks (user_id, title, description, due_date, priority, status)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id, title, description, due_date, priority, created_at, status
-                """
-                result = await conn.fetchrow(
-                    query,
-                    user_id,
-                    task_data["title"],
-                    task_data["description"],
-                    due_date_value,
-                    task_data["priority"],
-                    "pending"  # default status
-                )
-                
-                event = {
-                    "id": f"task-{result['id']}",
-                    "title": result['title'],
-                    "description": result['description'] or "",
-                    "start": result['due_date'].isoformat() if result['due_date'] else None,
-                    "end": result['due_date'].isoformat() if result['due_date'] else None,
-                    "type": "task",
-                    "completed": False,  # newly created tasks are not completed
-                    "priority": result['priority'],
-                    "allDay": True
-                }
-                
-                logger.info(f"✅ Created calendar event: {event['id']}")
-                return event
-        else:
-            # In-memory fallback
-            if "tasks" not in in_memory_storage:
-                in_memory_storage["tasks"] = {}
-            
-            event_id = str(get_next_id('task'))
-            task = {
-                "id": event_id,
-                "user_id": current_user['id'],
-                **task_data,
-                "created_at": datetime.utcnow().isoformat()
-            }
-            in_memory_storage["tasks"][event_id] = task
-            
-            event = {
-                "id": f"task-{event_id}",
-                "title": task['title'],
-                "description": task.get('description', ''),
-                "start": task['due_date'],
-                "end": task['due_date'],
-                "type": "task",
-                "completed": task['completed'],
-                "priority": task.get('priority', 'medium'),
-                "allDay": True
-            }
-            
-            return event
-            
-    except Exception as e:
-        logger.error(f"❌ Error creating calendar event: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
+
 
 # ============== AI & Auto Scheduling Endpoints ==============
 
@@ -3007,26 +2799,21 @@ async def summarize_text(
         else:  # concise
             words = text.split()[:20]  # First 20 words
             mock_summary = f"{' '.join(words)}... [요약: 이 텍스트는 {len(text)}자의 내용으로, 주요 주제와 핵심 정보들을 다루고 있습니다. AI가 자동으로 핵심 내용을 추출하여 간결하게 정리했습니다.]"
-                logger.info(f"✅ OpenAI summarization successful. Original: {len(text)}, Summary: {len(ai_summary)}")
-                
-                return {
-                    "summary": ai_summary,
-                    "original_length": len(text),
-                    "summary_length": len(ai_summary),
-                    "compression_ratio": 1 - (len(ai_summary) / len(text)),
-                    "style": style,
-                    "method": "openai_gpt"
-                }
-                
-            except Exception as openai_error:
-                logger.error(f"❌ OpenAI summarization failed: {str(openai_error)}")
-                logger.error(f"   Error type: {type(openai_error).__name__}")
-                # Fall back to simple method
-                pass
-        else:
-            logger.info(f"ℹ️ Using fallback summarization (OpenAI: {bool(OPENAI_API_KEY)}, text length: {len(text)})")
         
-        # Fallback simple summarization when OpenAI is not available or text is short
+        logger.info(f"✅ Mock summarization completed. Original: {len(text)}, Summary: {len(mock_summary)}")
+        
+        return {
+            "summary": mock_summary,
+            "original_length": len(text),
+            "summary_length": len(mock_summary),
+            "compression_ratio": 1 - (len(mock_summary) / len(text)),
+            "style": style,
+            "method": "mock_ai"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in AI summarization: {str(e)}")
+        # Fallback to simple summarization
         sentences = text.split('. ')
         if len(sentences) <= 3:
             summary = text
@@ -4127,38 +3914,69 @@ async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_u
             "model": "error",
             "error": str(e)
         }
-                current_user['id']
-            )
-            recent_tasks = await connection.fetch(
-                "SELECT title, description FROM tasks WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 3",
-                current_user['id']
-            )
-            
-            if recent_notes:
-                context_parts.append("Recent notes: " + "; ".join([f"{note['title']}: {note['content'][:100]}..." for note in recent_notes]))
-            if recent_tasks:
-                context_parts.append("Recent tasks: " + "; ".join([f"{task['title']}: {task['description'] or ''}".strip() for task in recent_tasks]))
+
+
+@app.post("/api/ai/insights")
+async def get_ai_insights(current_user: dict = Depends(get_current_user)):
+    """Generate AI-powered insights for the user"""
+    try:
+        logger.info(f"🧠 Generating AI insights for user {current_user['id']}")
         
-        system_prompt = f"""You are an AI assistant for a productivity app called 'AI Second Brain'. 
-        You help users with note-taking, task management, and productivity insights.
-        Be helpful, concise, and actionable. 
-        User: {current_user['name']} ({current_user['email']})
-        {chr(10).join(context_parts) if context_parts else ''}"""
+        # Get user statistics
+        if db_pool:
+            async with db_pool.acquire() as connection:
+                # Count user's notes and tasks
+                notes_count = await connection.fetchval(
+                    "SELECT COUNT(*) FROM notes WHERE user_id = $1",
+                    uuid.UUID(current_user['id'])
+                )
+                tasks_count = await connection.fetchval(
+                    "SELECT COUNT(*) FROM tasks WHERE user_id = $1",
+                    uuid.UUID(current_user['id'])
+                )
+                completed_tasks = await connection.fetchval(
+                    "SELECT COUNT(*) FROM tasks WHERE user_id = $1 AND status = 'completed'",
+                    uuid.UUID(current_user['id'])
+                )
+        else:
+            # Memory storage fallback
+            notes_count = len([n for n in memory_storage.get('notes', {}).values() 
+                             if n.get('user_id') == current_user['id']])
+            tasks_count = len([t for t in memory_storage.get('tasks', {}).values() 
+                             if t.get('user_id') == current_user['id']])
+            completed_tasks = len([t for t in memory_storage.get('tasks', {}).values() 
+                                 if t.get('user_id') == current_user['id'] and t.get('status') == 'completed'])
         
-        response = client.chat.completions.create(
-            model=request.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": request.prompt}
+        # Calculate metrics
+        completion_rate = (completed_tasks / tasks_count * 100) if tasks_count > 0 else 0
+        productivity_score = min(100, max(0, 60 + (completion_rate * 0.3) + (notes_count * 2)))
+        
+        insights = {
+            "productivity_score": round(productivity_score, 1),
+            "total_notes": notes_count,
+            "total_tasks": tasks_count,
+            "completed_tasks": completed_tasks,
+            "completion_rate": round(completion_rate, 1),
+            "insights": [
+                f"You have {notes_count} notes and {tasks_count} tasks",
+                f"Task completion rate: {completion_rate:.1f}%",
+                "Keep up the great work!" if completion_rate > 70 else "Consider focusing on completing existing tasks"
             ],
-            max_tokens=request.max_tokens,
-            temperature=request.temperature
-        )
+            "recommendations": [
+                "Review and organize your notes weekly",
+                "Set realistic daily task goals",
+                "Use tags to categorize your content"
+            ]
+        }
         
-        result = {
-            "response": response.choices[0].message.content,
-            "usage": response.usage.model_dump() if response.usage else None,
-            "model": request.model
+        logger.info(f"✅ Generated insights with productivity score: {productivity_score}")
+        return insights
+        
+    except Exception as e:
+        logger.error(f"❌ Error generating insights: {e}")
+        return {
+            "productivity_score": 0,
+            "error": "Unable to generate insights"
         }
         
         # Log interaction
