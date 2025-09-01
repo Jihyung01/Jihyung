@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-This is a comprehensive AI-powered second brain application built with modern technologies:
+This is a comprehensive AI-powered senpm run dev:fe       # Start frontend only (port 5178)ond brain application built with modern technologies:
 
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS
 - **Backend**: FastAPI + Python + WebSockets

@@ -44,12 +44,12 @@ DISABLE_AUTH=true
 npm run dev
 
 # 또는 개별 실행
-npm run dev:fe  # 프론트엔드 (포트 5177)
+npm run dev:fe  # 프론트엔드 (포트 5178)
 npm run dev:be  # 백엔드 (포트 5000)
 ```
 
 ### 4단계: 접속
-1. **Codespaces Ports** 탭에서 **5177번 포트를 Public으로 설정**
+1. **Codespaces Ports** 탭에서 **5178번 포트를 Public으로 설정**
 2. 브라우저 새 탭에서 해당 URL로 접속
 3. `Alt/⌥ + C`로 빠른 캡처 모달 테스트
 
@@ -79,7 +79,7 @@ npm run dev:be  # 백엔드 (포트 5000)
 ## 🔧 개발 가이드
 
 ### 포트 구성
-- **Frontend**: 5177 (Public in Codespaces)
+- **Frontend**: 5178 (Public in Codespaces)
 - **Backend**: 5000 (Private, Vite 프록시 경유)
 - **API Base**: `/api` (상대 경로, 프록시 사용)
 

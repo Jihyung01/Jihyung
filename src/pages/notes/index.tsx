@@ -7,18 +7,21 @@ import { Badge } from '../../components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog'
 import { Textarea } from '../../components/ui/textarea'
 import { Label } from '../../components/ui/label'
-import { listNotes, createNote, searchNotes } from '../../lib/api'
+import { getNotes, createNote } from '../../lib/api'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
 interface Note {
-  id: number
+  id: string
   title: string
   content: string
   summary?: string
   tags: string[]
   created_at: string
   updated_at: string
+  user_id: string
+  version: number
+  is_archived: boolean
 }
 
 export default function NotesPage() {
@@ -41,9 +44,9 @@ export default function NotesPage() {
       let data: Note[]
       
       if (searchQuery || selectedTags.length > 0) {
-        data = await searchNotes(searchQuery, selectedTags)
+        data = await getNotes(searchQuery, selectedTags)
       } else {
-        data = await listNotes()
+        data = await getNotes()
       }
       
       setNotes(data)
