@@ -13,12 +13,12 @@ export default async function handler(req, res) {
 
   try {
     // 백엔드 서버 URL (환경변수에서 가져오거나 기본값 사용)
-    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8006';
-    
+    const BACKEND_URL = process.env.BACKEND_URL || process.env.VITE_API_URL || 'http://localhost:8006';
+
     // 요청 경로에서 /api 제거하고 백엔드로 전달
     const path = req.url.replace('/api/', '/api/');
     const backendUrl = `${BACKEND_URL}${path}`;
-    
+
     console.log(`Proxying ${req.method} ${req.url} -> ${backendUrl}`);
 
     // 백엔드로 요청 전달
@@ -32,10 +32,10 @@ export default async function handler(req, res) {
     });
 
     const data = await response.text();
-    
+
     // 응답 상태와 헤더 설정
     res.status(response.status);
-    
+
     // Content-Type 헤더 복사
     const contentType = response.headers.get('content-type');
     if (contentType) {
