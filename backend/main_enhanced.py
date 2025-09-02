@@ -4635,16 +4635,68 @@ async def create_event_alias(
     """Create a new calendar event - alias for /api/calendar"""
     try:
         # Convert dict to CalendarEventCreate
-        from datetime import datetime
+        from datetime import datetime, timezone
+        import re
         
-        # Parse datetime strings
+        logger.info(f"📅 Creating calendar event with data: {event_data}")
+        
+        # Parse datetime strings with multiple format support
         start_time = event_data.get('start')
         end_time = event_data.get('end')
         
-        if isinstance(start_time, str):
-            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-        if isinstance(end_time, str):
-            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        def parse_datetime(dt_str):
+            """Parse various datetime formats"""
+            if not dt_str:
+                return None
+            
+            if isinstance(dt_str, datetime):
+                return dt_str
+                
+            if isinstance(dt_str, str):
+                try:
+                    # Remove any timezone info and handle various formats
+                    dt_str = dt_str.strip()
+                    
+                    # Handle Z suffix
+                    if dt_str.endswith('Z'):
+                        dt_str = dt_str[:-1] + '+00:00'
+                    
+                    # Handle various ISO formats
+                    if '+' in dt_str or dt_str.endswith('T'):
+                        return datetime.fromisoformat(dt_str)
+                    
+                    # Handle YYYY-MM-DD HH:MM format
+                    if re.match(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}', dt_str):
+                        return datetime.strptime(dt_str, '%Y-%m-%d %H:%M')
+                    
+                    # Handle YYYY-MM-DDTHH:MM format
+                    if 'T' in dt_str:
+                        dt_str = dt_str.split('.')[0]  # Remove microseconds
+                        return datetime.fromisoformat(dt_str)
+                    
+                    # Fallback: try to parse as ISO format
+                    return datetime.fromisoformat(dt_str)
+                    
+                except Exception as e:
+                    logger.error(f"❌ Failed to parse datetime '{dt_str}': {e}")
+                    return None
+            
+            return None
+        
+        start_time = parse_datetime(start_time)
+        end_time = parse_datetime(end_time)
+        
+        # Validation
+        if not start_time:
+            raise HTTPException(status_code=400, detail="start_time is required and must be a valid datetime")
+        
+        if not end_time:
+            raise HTTPException(status_code=400, detail="end_time is required and must be a valid datetime")
+        
+        if start_time >= end_time:
+            raise HTTPException(status_code=400, detail="start_time must be before end_time")
+        
+        logger.info(f"✅ Parsed times - Start: {start_time}, End: {end_time}")
         
         # 인메모리 저장소에 이벤트 생성
         event_id = str(get_next_id('event'))
