@@ -2651,16 +2651,6 @@ async def create_event_alias(
 ):
     """Create a new calendar event - alias for /api/calendar"""
     return await create_calendar_event(event_data, current_user)
-                "attendees": event['attendees'],
-                "user_id": current_user['id'],
-                "created_at": event['created_at'].isoformat(),
-                "updated_at": event['updated_at'].isoformat(),
-                "type": "event"
-            }
-            
-    except Exception as e:
-        logger.error(f"❌ Failed to create calendar event: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
 
 
 # @app.post("/api/tasks", response_model=dict)
