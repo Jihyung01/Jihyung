@@ -127,8 +127,18 @@ export const listNotes = (query?: string, tags?: string[]) => {
   return getJSON<any[]>(`/notes?${params}`)
 }
 
-export const createNote = (note: { title?: string; content: string; tags?: string[] }) =>
-  postJSON<any>('/notes', note)
+export const createNote = (note: { 
+  title?: string; 
+  content: string; 
+  tags?: string[];
+  content_type?: string;
+  type?: string;
+  folder?: string;
+  color?: string;
+  is_pinned?: boolean;
+  template_id?: string;
+  parent_note_id?: string;
+}) => postJSON<any>('/notes', note)
 
 export const updateNote = (id: number, note: Partial<{ title: string; content: string; tags: string[] }>) =>
   putJSON<any>(`/notes/${id}`, note)
@@ -147,11 +157,28 @@ export const getTodayTasks = () => getJSON<any[]>('/tasks/today')
 
 export const createTask = (task: {
   title: string
+  description?: string
   due_at?: string
+  due_date?: string
+  all_day?: boolean
   priority?: 'low' | 'medium' | 'high'
+  status?: string
+  urgency_score?: number
+  importance_score?: number
   energy?: number
+  energy_level?: string
   parent_id?: number
+  parent_task_id?: string
   note_id?: number
+  project_id?: string
+  tags?: string[]
+  category?: string
+  location?: string
+  assignee?: string
+  reminder_date?: string
+  estimated_duration?: number
+  context_tags?: string[]
+  recurrence_rule?: string
 }) => postJSON<any>('/tasks', task)
 
 export const updateTask = (id: number, task: Partial<{
@@ -184,10 +211,19 @@ export const getCalendarEvents = (from: string, to: string) =>
 
 export const createCalendarEvent = (event: {
   title: string
+  description?: string
   start: string
   end: string
-  description?: string
+  all_day?: boolean
+  timezone?: string
+  color?: string
   location?: string
+  meeting_url?: string
+  event_type?: string
+  recurrence_rule?: string
+  reminder_minutes?: number[]
+  attendees?: Record<string, any>
+  visibility?: string
 }) => postJSON<any>('/events', event)
 
 export const updateCalendarEvent = (id: number, event: Partial<{

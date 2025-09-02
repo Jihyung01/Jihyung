@@ -1,4 +1,4 @@
-# AI Second Brain - Product Requirements Document
+# Jihyung - Product Requirements Document
 
 ## Core Purpose & Success
 

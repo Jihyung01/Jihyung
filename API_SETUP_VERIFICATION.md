@@ -1,4 +1,4 @@
-# API Setup Verification - AI Second Brain
+# API Setup Verification - Jihyung
 
 ## ✅ Changes Made
 

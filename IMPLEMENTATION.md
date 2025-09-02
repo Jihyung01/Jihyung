@@ -1,4 +1,4 @@
-chore: comprehensive ai second brain implementation
+chore: comprehensive Jihyung implementation
 
 Features implemented:
 - ✅ Vite proxy to eliminate CORS issues (port 5177 → 5000)

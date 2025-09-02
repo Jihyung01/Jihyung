@@ -1,4 +1,4 @@
-"""Create AI Second Brain tables
+"""Create Jihyung tables
 
 Revision ID: 003_ai_second_brain
 Revises: 002_add_recurring_rule

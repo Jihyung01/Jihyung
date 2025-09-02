@@ -1,4 +1,4 @@
-# AI Second Brain - Implementation Summary
+# Jihyung - Implementation Summary
 
 ## 🎯 완료된 기능들
 
@@ -237,4 +237,4 @@ VITE_API_TOKEN=dev-123
 - 에러 핸들링
 - 프롬프트 엔지니어링
 
-이 구현은 **완전히 작동하는 AI Second Brain**으로, 개인 지식 관리의 새로운 패러다임을 제시합니다. 🚀
+이 구현은 **완전히 작동하는 Jihyung**으로, 개인 지식 관리의 새로운 패러다임을 제시합니다. 🚀

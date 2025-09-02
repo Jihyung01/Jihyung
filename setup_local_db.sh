@@ -2,7 +2,7 @@
 # 🚀 로컬 PostgreSQL 설정으로 완전한 클라우드 기능 구현
 # Supabase 대신 로컬에서 완전한 제어권 확보
 
-echo "🚀 === 최첨단 AI Second Brain 로컬 DB 설정 ==="
+echo "🚀 === 최첨단 Jihyung 로컬 DB 설정 ==="
 
 # 1. PostgreSQL 설치
 echo "📦 PostgreSQL 설치 중..."
@@ -43,7 +43,7 @@ JWT_SECRET=your-super-secret-jwt-key-for-ai-second-brain-app
 JWT_ALGORITHM=HS256
 
 # 앱 설정
-APP_NAME=AI Second Brain
+APP_NAME=Jihyung
 APP_VERSION=2.0.0
 DEBUG=true
 EOF

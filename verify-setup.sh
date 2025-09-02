@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Quick verification script for the hardened AI Second Brain app
+# Quick verification script for the hardened Jihyung app
 # This script checks the main components are working
 
-echo "=== AI Second Brain - Foundation & Hardening Verification ==="
+echo "=== Jihyung - Foundation & Hardening Verification ==="
 echo ""
 
 # Check if required files exist

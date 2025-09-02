@@ -5,7 +5,7 @@ test.describe('Navigation', () => {
     await page.goto('/')
     
     // Should start on dashboard
-    await expect(page.locator('h1')).toContainText('AI Second Brain')
+    await expect(page.locator('h1')).toContainText('Jihyung')
     
     // Navigate to notes
     await page.getByTestId('notes-nav').click()
@@ -21,7 +21,7 @@ test.describe('Navigation', () => {
     
     // Navigate back to dashboard
     await page.getByTestId('dashboard-nav').click()
-    await expect(page.locator('h1')).toContainText('AI Second Brain')
+    await expect(page.locator('h1')).toContainText('Jihyung')
   })
 
   test('should show no console errors', async ({ page }) => {

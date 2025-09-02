@@ -1,4 +1,4 @@
-# AI Second Brain - Complete Project Setup Guide
+# Jihyung - Complete Project Setup Guide
 
 ## 🎯 Overview
 
@@ -169,7 +169,7 @@ npm run format       # Format code with Prettier
 ```env
 VITE_API_URL=http://localhost:8000          # Backend API URL
 VITE_WS_URL=ws://localhost:1234             # WebSocket URL
-VITE_APP_NAME=AI Second Brain               # Application name
+VITE_APP_NAME=Jihyung               # Application name
 VITE_APP_VERSION=2.0.0                      # Version number
 ```
 

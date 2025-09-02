@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# AI Second Brain - Complete Setup Script
+# Jihyung - Complete Setup Script
 # This script sets up the complete development environment
 
 set -e  # Exit on any error
 
-echo "🚀 AI Second Brain - Complete Setup Script"
+echo "🚀 Jihyung - Complete Setup Script"
 echo "==========================================="
 
 # Colors for output
@@ -88,7 +88,7 @@ if [ ! -f ".env.local" ]; then
     cat > .env.local << EOF
 VITE_API_URL=http://localhost:8008
 VITE_WS_URL=ws://localhost:1234
-VITE_APP_NAME=AI Second Brain
+VITE_APP_NAME=Jihyung
 VITE_APP_VERSION=2.0.0
 EOF
     print_status ".env.local created"

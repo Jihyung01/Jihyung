@@ -1,5 +1,5 @@
 """
-Enhanced AI Second Brain Backend
+Enhanced Jihyung Backend
 최고 수준의 AI 기반 생산성 플랫폼
 """
 
@@ -997,7 +997,7 @@ async def create_demo_user():
                 """INSERT INTO users (id, name, email, password_hash, bio, is_premium) 
                    VALUES ($1, $2, $3, $4, $5, $6)""",
                 demo_user_id, "Demo User", demo_email, hashed_password, 
-                "AI Second Brain Demo Account", True
+                "Jihyung Demo Account", True
             )
             user_id = demo_user_id
         except Exception as e:
@@ -4347,7 +4347,7 @@ async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_u
                         if recent_notes:
                             context_parts.append("Recent notes: " + ", ".join([note['title'] for note in recent_notes]))
                 
-                system_message = f"""당신은 AI Second Brain의 지능형 어시스턴트입니다. 
+                system_message = f"""당신은 Jihyung의 지능형 어시스턴트입니다. 
 사용자의 생산성 향상을 위해 노트, 작업, 일정 관리를 도와주세요.
 사용자 컨텍스트: {' | '.join(context_parts) if context_parts else '없음'}"""
 
@@ -4379,7 +4379,7 @@ async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_u
         
         # Smart responses based on keywords
         if any(word in message_lower for word in ['안녕', '헬로', '하이', 'hello', 'hi']):
-            mock_response = """안녕하세요! 👋 AI Second Brain 어시스턴트입니다.
+            mock_response = """안녕하세요! 👋 Jihyung 어시스턴트입니다.
 
 다음과 같은 도움을 드릴 수 있습니다:
 • 📝 노트 작성 및 정리 도움
@@ -4440,7 +4440,7 @@ async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_u
 새로운 일정을 추가해보세요!"""
         
         elif any(word in message_lower for word in ['도움', 'help', '가이드', '사용법']):
-            mock_response = """AI Second Brain 사용 가이드입니다! 🚀
+            mock_response = """Jihyung 사용 가이드입니다! 🚀
 
 **주요 기능:**
 1. 📝 **노트**: 아이디어와 정보를 체계적으로 기록

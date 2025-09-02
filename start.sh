@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#    echo "VITE_API_BASE=http://localhost:8006" > .env.localAI Second Brain - Startup Script
-echo "🚀 Starting AI Second Brain..."
+#    echo "VITE_API_BASE=http://localhost:8006" > .env.localJihyung - Startup Script
+echo "🚀 Starting Jihyung..."
 
 # Check if .env exists
 if [ ! -f .env ]; then
@@ -47,7 +47,7 @@ npm run dev &
 FRONTEND_PID=$!
 
 echo ""
-echo "✅ AI Second Brain is running!"
+echo "✅ Jihyung is running!"
 echo "📊 Frontend: http://localhost:5173"
 echo "🔧 Backend API: http://localhost:8006"
 echo "📖 API Docs: http://localhost:8006/api/health"

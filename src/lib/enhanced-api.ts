@@ -11,6 +11,12 @@ export interface Note {
   user_id: number;
   version: number;
   is_archived: boolean;
+  // Additional fields for enhanced functionality
+  folder?: string;
+  color?: string;
+  is_pinned?: boolean;
+  content_type?: string;
+  type?: string;
 }
 
 export interface Task {
@@ -27,6 +33,11 @@ export interface Task {
   user_id: number;
   parent_id?: number;
   note_id?: number;
+  // Additional fields for enhanced functionality
+  project_id?: number;
+  tags?: string[];
+  category?: string;
+  location?: string;
 }
 
 export interface CalendarEvent {
@@ -96,11 +107,23 @@ export const enhancedAPI = {
         throw new Error('Note title is required');
       }
       
-      const result = await api.createNote({
+      // Format data according to backend NoteCreate model expectations
+      const noteCreateData = {
         title: data.title.trim(),
         content: data.content || '',
-        tags: data.tags || []
-      });
+        content_type: "markdown", // Fixed string, not optional
+        type: "note", // Fixed string, not optional
+        tags: data.tags || [],
+        folder: data.folder || null,
+        color: data.color || null,
+        is_pinned: data.is_pinned || false,
+        template_id: null,
+        parent_note_id: null
+      };
+      
+      console.log('Enhanced API: Sending formatted note data:', noteCreateData);
+      
+      const result = await api.createNote(noteCreateData);
       
       console.log('Enhanced API: Note created successfully:', result);
       return result;
@@ -183,26 +206,33 @@ export const enhancedAPI = {
         throw new Error('Task title is required');
       }
       
-      const result = await api.createTask({
+      // Format data according to backend TaskCreate model expectations
+      const taskCreateData = {
         title: data.title.trim(),
-        description: data.description || '', // Ensure description is always included
+        description: data.description || '',
         priority: data.priority || 'medium',
+        status: 'pending', // Fixed default status
+        urgency_score: 5, // Default urgency score
+        importance_score: 5, // Default importance score
         due_at: data.due_at,
         due_date: data.due_at, // Map for backward compatibility
-        all_day: true,
-        status: 'pending',
-        urgency_score: 5,
-        importance_score: 5,
-        energy: data.energy,
-        parent_id: data.parent_id,
-        note_id: data.note_id,
-        tags: [],
-        category: undefined,
-        location: undefined,
-        energy_level: 'medium',
+        all_day: true, // Default to all day
+        reminder_date: null,
+        estimated_duration: null,
+        assignee: null,
+        project_id: data.project_id || null,
+        parent_task_id: data.parent_id || null,
+        tags: data.tags || [],
+        category: null,
+        location: null,
+        energy_level: 'medium', // Default energy level
         context_tags: [],
-        recurrence_rule: undefined
-      });
+        recurrence_rule: null
+      };
+      
+      console.log('Enhanced API: Sending formatted task data:', taskCreateData);
+      
+      const result = await api.createTask(taskCreateData);
       
       console.log('Enhanced API: Task created successfully:', result);
       return result;
@@ -291,13 +321,27 @@ export const enhancedAPI = {
         throw new Error('Event title is required');
       }
       
-      const result = await api.createCalendarEvent({
+      // Format data according to backend CalendarEventCreate model expectations
+      const eventCreateData = {
         title: data.title.trim(),
         description: data.description || '',
         start: data.start_at || '',
         end: data.end_at || data.start_at || '',
-        location: data.location || ''
-      });
+        all_day: false, // Default to not all day for events
+        timezone: 'UTC', // Default timezone
+        color: null,
+        location: data.location || '',
+        meeting_url: null,
+        event_type: 'event', // Default event type
+        recurrence_rule: null,
+        reminder_minutes: [],
+        attendees: {},
+        visibility: 'private' // Default visibility
+      };
+      
+      console.log('Enhanced API: Sending formatted event data:', eventCreateData);
+      
+      const result = await api.createCalendarEvent(eventCreateData);
       
       console.log('Enhanced API: Calendar event created successfully:', result);
       return result;
