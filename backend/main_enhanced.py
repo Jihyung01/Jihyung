@@ -3,13 +3,14 @@ Enhanced Jihyung Backend
 최고 수준의 AI 기반 생산성 플랫폼
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Form, UploadFile, File, WebSocket, WebSocketDisconnect, BackgroundTasks, Query
+from fastapi import FastAPI, HTTPException, Depends, Form, UploadFile, File, WebSocket, WebSocketDisconnect, BackgroundTasks, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from typing import List, Optional, Dict, Any, Union
 import asyncpg
 import asyncio
@@ -138,6 +139,92 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Request logging middleware for debugging
+@app.middleware("http")
+async def log_requests(request, call_next):
+    """Log all incoming requests for debugging"""
+    try:
+        # Read request body
+        body = await request.body()
+        
+        # Log request details
+        logger.info(f"🔍 Request: {request.method} {request.url}")
+        logger.info(f"🔍 Headers: {dict(request.headers)}")
+        
+        if body:
+            try:
+                # Try to decode and log the body
+                body_str = body.decode('utf-8')
+                logger.info(f"🔍 Body: {body_str}")
+                
+                # Try to parse as JSON for better formatting
+                try:
+                    import json
+                    parsed_body = json.loads(body_str)
+                    logger.info(f"🔍 Parsed JSON: {json.dumps(parsed_body, indent=2)}")
+                except:
+                    logger.info(f"🔍 Raw body: {body_str}")
+            except:
+                logger.info(f"🔍 Binary body length: {len(body)}")
+        else:
+            logger.info("🔍 No body")
+            
+        # Continue with request processing
+        response = await call_next(request)
+        
+        logger.info(f"📤 Response: {response.status_code}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Request logging error: {e}")
+        # Continue even if logging fails
+        return await call_next(request)
+
+# Validation error handler for better debugging
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with detailed information"""
+    logger.error(f"❌ Validation error for {request.method} {request.url}")
+    logger.error(f"❌ Validation details: {exc.errors()}")
+    
+    # Try to get the request body for debugging
+    try:
+        body = await request.body()
+        if body:
+            body_str = body.decode('utf-8')
+            logger.error(f"❌ Request body that caused error: {body_str}")
+    except:
+        logger.error("❌ Could not read request body")
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "message": "Input validation failed. Please check the request format.",
+            "debugging_info": {
+                "url": str(request.url),
+                "method": request.method,
+                "error_count": len(exc.errors())
+            }
+        }
+    )
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """Handle value errors with detailed information"""
+    logger.error(f"❌ Value error for {request.method} {request.url}: {str(exc)}")
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": str(exc),
+            "message": "Invalid value provided in request",
+            "debugging_info": {
+                "url": str(request.url),
+                "method": request.method
+            }
+        }
+    )
 
 # Security
 security = HTTPBearer()
