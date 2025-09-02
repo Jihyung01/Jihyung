@@ -4146,57 +4146,495 @@ async def update_task_partial(task_id: str, task_data: dict, current_user: dict 
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
-                "created_at": task['created_at'].isoformat(),
-                "updated_at": task['updated_at'].isoformat(),
-                "createdAt": task['created_at'].isoformat(),
-                "updatedAt": task['updated_at'].isoformat()
+
+
+@app.delete("/api/tasks/{task_id}")
+async def delete_task(
+    task_id: str, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a task"""
+    try:
+        task_uuid = parse_id(task_id)
+        
+        logger.info(f"🗑️ Deleting task {task_uuid} for user {current_user['id']}")
+        
+        if USE_MEMORY_STORAGE:
+            # Delete from memory storage
+            user_tasks = memory_storage['tasks'].get(str(current_user['id']), [])
+            original_count = len(user_tasks)
+            memory_storage['tasks'][str(current_user['id'])] = [
+                task for task in user_tasks 
+                if parse_id(task['id']) != task_uuid
+            ]
+            new_count = len(memory_storage['tasks'][str(current_user['id'])])
+            
+            if original_count == new_count:
+                raise HTTPException(status_code=404, detail="Task not found")
+                
+            logger.info(f"✅ Task {task_uuid} deleted from memory storage")
+            
+        else:
+            # Delete from database
+            query = """
+                DELETE FROM tasks 
+                WHERE id = $1 AND user_id = $2 
+                RETURNING id
+            """
+            result = await database.fetch_one(query, task_uuid, current_user['id'])
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Task not found")
+                
+            logger.info(f"✅ Task {task_uuid} deleted from database")
+        
+        return {"message": "Task deleted successfully", "id": str(task_uuid)}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deleting task {task_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete task: {str(e)}")
+
+
+# Note endpoints
+@app.get("/api/notes")
+async def get_notes(current_user: dict = Depends(get_current_user)):
+    """Get all notes for the current user"""
+    try:
+        if USE_MEMORY_STORAGE:
+            user_notes = memory_storage['notes'].get(str(current_user['id']), [])
+            logger.info(f"📚 Retrieved {len(user_notes)} notes from memory storage for user {current_user['id']}")
+            return user_notes
+        else:
+            query = """
+                SELECT * FROM notes 
+                WHERE user_id = $1 
+                ORDER BY created_at DESC
+            """
+            notes = await database.fetch_all(query, current_user['id'])
+            
+            result = []
+            for note in notes:
+                note_dict = dict(note)
+                note_dict['id'] = str(note_dict['id'])
+                note_dict['user_id'] = str(note_dict['user_id'])
+                result.append(note_dict)
+            
+            logger.info(f"📚 Retrieved {len(result)} notes from database for user {current_user['id']}")
+            return result
+            
+    except Exception as e:
+        logger.error(f"❌ Error retrieving notes: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve notes: {str(e)}")
+
+
+@app.post("/api/notes")
+async def create_note(
+    note_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new note"""
+    try:
+        note_id = uuid.uuid4()
+        now = datetime.now(timezone.utc)
+        
+        logger.info(f"📝 Creating note for user {current_user['id']}")
+        logger.info(f"Note data received: {note_data}")
+        
+        if USE_MEMORY_STORAGE:
+            # Create note in memory storage
+            note = {
+                "id": str(note_id),
+                "title": note_data.get('title', ''),
+                "content": note_data.get('content', ''),
+                "tags": note_data.get('tags', []),
+                "category": note_data.get('category', ''),
+                "color": note_data.get('color', '#ffffff'),
+                "is_pinned": note_data.get('is_pinned', False),
+                "is_archived": note_data.get('is_archived', False),
+                "user_id": str(current_user['id']),
+                "created_at": now,
+                "updated_at": now,
+                "type": "note"
+            }
+            
+            if str(current_user['id']) not in memory_storage['notes']:
+                memory_storage['notes'][str(current_user['id'])] = []
+            memory_storage['notes'][str(current_user['id'])].append(note)
+            
+            logger.info(f"✅ Note {note_id} created in memory storage")
+            
+            # Return the note with string datetime for JSON serialization
+            return {
+                "id": note["id"],
+                "title": note["title"],
+                "content": note["content"],
+                "tags": note["tags"],
+                "category": note["category"],
+                "color": note["color"],
+                "is_pinned": note["is_pinned"],
+                "is_archived": note["is_archived"],
+                "user_id": note["user_id"],
+                "created_at": note["created_at"].isoformat(),
+                "updated_at": note["updated_at"].isoformat(),
+                "type": "note"
+            }
+        
+        else:
+            # Create note in database
+            query = """
+                INSERT INTO notes (
+                    id, title, content, tags, category, color, 
+                    is_pinned, is_archived, user_id, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                RETURNING *
+            """
+            
+            note = await database.fetch_one(
+                query,
+                note_id,
+                note_data.get('title', ''),
+                note_data.get('content', ''),
+                note_data.get('tags', []),
+                note_data.get('category', ''),
+                note_data.get('color', '#ffffff'),
+                note_data.get('is_pinned', False),
+                note_data.get('is_archived', False),
+                current_user['id'],
+                now,
+                now
+            )
+            
+            logger.info(f"✅ Note {note_id} created in database")
+            
+            return {
+                "id": str(note['id']),
+                "title": note['title'],
+                "content": note['content'],
+                "tags": note['tags'],
+                "category": note['category'],
+                "color": note['color'],
+                "is_pinned": note['is_pinned'],
+                "is_archived": note['is_archived'],
+                "user_id": str(note['user_id']),
+                "created_at": note['created_at'].isoformat(),
+                "updated_at": note['updated_at'].isoformat(),
+                "type": "note"
             }
             
     except Exception as e:
-        logger.error(f"❌ Failed to update task {task_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
+        logger.error(f"❌ Failed to create note: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create note: {str(e)}")
+
+
+@app.put("/api/notes/{note_id}")
+async def update_note(
+    note_id: str,
+    note_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update an existing note"""
+    try:
+        note_uuid = parse_id(note_id)
+        now = datetime.now(timezone.utc)
         
-        # Handle completion timestamp for status changes
-        if task_data.status is not None:
-            if task_data.status == 'completed' and existing_task['status'] != 'completed':
-                param_count += 1
-                update_fields.append(f"completed_at = ${param_count}")
-                params.append(datetime.utcnow())
-            elif task_data.status != 'completed' and existing_task['status'] == 'completed':
-                param_count += 1
-                update_fields.append(f"completed_at = ${param_count}")
-                params.append(None)
+        logger.info(f"📝 Updating note {note_uuid} for user {current_user['id']}")
         
-        if not update_fields:
-            return {"message": "No fields to update"}
+        if USE_MEMORY_STORAGE:
+            # Update in memory storage
+            user_notes = memory_storage['notes'].get(str(current_user['id']), [])
+            note_found = False
+            
+            for i, note in enumerate(user_notes):
+                if parse_id(note['id']) == note_uuid:
+                    # Update note fields
+                    note.update({
+                        "title": note_data.get('title', note.get('title', '')),
+                        "content": note_data.get('content', note.get('content', '')),
+                        "tags": note_data.get('tags', note.get('tags', [])),
+                        "category": note_data.get('category', note.get('category', '')),
+                        "color": note_data.get('color', note.get('color', '#ffffff')),
+                        "is_pinned": note_data.get('is_pinned', note.get('is_pinned', False)),
+                        "is_archived": note_data.get('is_archived', note.get('is_archived', False)),
+                        "updated_at": now
+                    })
+                    user_notes[i] = note
+                    note_found = True
+                    break
+            
+            if not note_found:
+                raise HTTPException(status_code=404, detail="Note not found")
+            
+            logger.info(f"✅ Note {note_uuid} updated in memory storage")
+            
+            # Return the updated note
+            updated_note = user_notes[i]
+            return {
+                "id": updated_note["id"],
+                "title": updated_note["title"],
+                "content": updated_note["content"],
+                "tags": updated_note["tags"],
+                "category": updated_note["category"],
+                "color": updated_note["color"],
+                "is_pinned": updated_note["is_pinned"],
+                "is_archived": updated_note["is_archived"],
+                "user_id": updated_note["user_id"],
+                "created_at": updated_note["created_at"].isoformat() if isinstance(updated_note["created_at"], datetime) else updated_note["created_at"],
+                "updated_at": updated_note["updated_at"].isoformat(),
+                "type": "note"
+            }
         
-        # Add updated_at timestamp
-        param_count += 1
-        update_fields.append(f"updated_at = ${param_count}")
-        params.append(datetime.utcnow())
+        else:
+            # Update in database
+            query = """
+                UPDATE notes SET 
+                    title = $1, content = $2, tags = $3, category = $4, 
+                    color = $5, is_pinned = $6, is_archived = $7, updated_at = $8
+                WHERE id = $9 AND user_id = $10
+                RETURNING *
+            """
+            
+            note = await database.fetch_one(
+                query,
+                note_data.get('title'),
+                note_data.get('content'),
+                note_data.get('tags', []),
+                note_data.get('category', ''),
+                note_data.get('color', '#ffffff'),
+                note_data.get('is_pinned', False),
+                note_data.get('is_archived', False),
+                now,
+                note_uuid,
+                current_user['id']
+            )
+            
+            if not note:
+                raise HTTPException(status_code=404, detail="Note not found")
+            
+            logger.info(f"✅ Note {note_uuid} updated in database")
+            
+            return {
+                "id": str(note['id']),
+                "title": note['title'],
+                "content": note['content'],
+                "tags": note['tags'],
+                "category": note['category'],
+                "color": note['color'],
+                "is_pinned": note['is_pinned'],
+                "is_archived": note['is_archived'],
+                "user_id": str(note['user_id']),
+                "created_at": note['created_at'].isoformat(),
+                "updated_at": note['updated_at'].isoformat(),
+                "type": "note"
+            }
         
-        # Add WHERE clause parameters
-        param_count += 1
-        params.append(uuid.UUID(task_id))
-        param_count += 1
-        params.append(current_user['id'])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error updating note {note_id}: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to update note: {str(e)}")
+
+
+@app.delete("/api/notes/{note_id}")
+async def delete_note(
+    note_id: str, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a note"""
+    try:
+        note_uuid = parse_id(note_id)
         
-        # Execute update
-        query = f"""UPDATE tasks SET {', '.join(update_fields)} 
-                   WHERE id = ${param_count-1} AND user_id = ${param_count}"""
+        logger.info(f"🗑️ Deleting note {note_uuid} for user {current_user['id']}")
         
-        result = await connection.execute(query, *params)
+        if USE_MEMORY_STORAGE:
+            # Delete from memory storage
+            user_notes = memory_storage['notes'].get(str(current_user['id']), [])
+            original_count = len(user_notes)
+            memory_storage['notes'][str(current_user['id'])] = [
+                note for note in user_notes 
+                if parse_id(note['id']) != note_uuid
+            ]
+            new_count = len(memory_storage['notes'][str(current_user['id'])])
+            
+            if original_count == new_count:
+                raise HTTPException(status_code=404, detail="Note not found")
+                
+            logger.info(f"✅ Note {note_uuid} deleted from memory storage")
+            
+        else:
+            # Delete from database
+            query = """
+                DELETE FROM notes 
+                WHERE id = $1 AND user_id = $2 
+                RETURNING id
+            """
+            result = await database.fetch_one(query, note_uuid, current_user['id'])
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Note not found")
+                
+            logger.info(f"✅ Note {note_uuid} deleted from database")
         
-        if result == "UPDATE 0":
-            raise HTTPException(status_code=404, detail="Task not found")
+        return {"message": "Note deleted successfully", "id": str(note_uuid)}
         
-        # Send real-time update
-        await manager.send_personal_message({
-            "type": "task_updated",
-            "data": {"id": task_id, "status": task_data.status or existing_task['status']}
-        }, current_user['id'])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deleting note {note_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete note: {str(e)}")
+
+
+# Calendar endpoints  
+@app.get("/api/calendar")
+async def get_calendar_events(current_user: dict = Depends(get_current_user)):
+    """Get all calendar events for the current user"""
+    try:
+        if USE_MEMORY_STORAGE:
+            user_events = memory_storage['events'].get(str(current_user['id']), [])
+            logger.info(f"📅 Retrieved {len(user_events)} events from memory storage for user {current_user['id']}")
+            return user_events
+        else:
+            query = """
+                SELECT * FROM calendar_events 
+                WHERE user_id = $1 
+                ORDER BY start_time ASC
+            """
+            events = await database.fetch_all(query, current_user['id'])
+            
+            result = []
+            for event in events:
+                event_dict = dict(event)
+                event_dict['id'] = str(event_dict['id'])
+                event_dict['user_id'] = str(event_dict['user_id'])
+                # Handle datetime fields
+                if event_dict.get('start_time'):
+                    event_dict['start_time'] = event_dict['start_time'].isoformat()
+                if event_dict.get('end_time'):
+                    event_dict['end_time'] = event_dict['end_time'].isoformat()
+                if event_dict.get('created_at'):
+                    event_dict['created_at'] = event_dict['created_at'].isoformat()
+                if event_dict.get('updated_at'):
+                    event_dict['updated_at'] = event_dict['updated_at'].isoformat()
+                result.append(event_dict)
+            
+            logger.info(f"📅 Retrieved {len(result)} events from database for user {current_user['id']}")
+            return result
+            
+    except Exception as e:
+        logger.error(f"❌ Error retrieving calendar events: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve calendar events: {str(e)}")
+
+
+@app.post("/api/calendar")
+async def create_calendar_event(
+    event_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new calendar event"""
+    try:
+        event_id = uuid.uuid4()
+        now = datetime.now(timezone.utc)
         
-        return {"message": "Task updated successfully"}
+        logger.info(f"📅 Creating calendar event for user {current_user['id']}")
+        logger.info(f"Event data received: {event_data}")
+        
+        # Parse datetime strings
+        start_time = datetime.fromisoformat(event_data['start_time'].replace('Z', '+00:00'))
+        end_time = datetime.fromisoformat(event_data['end_time'].replace('Z', '+00:00'))
+        
+        if USE_MEMORY_STORAGE:
+            # Create event in memory storage
+            event = {
+                "id": str(event_id),
+                "title": event_data.get('title', ''),
+                "description": event_data.get('description', ''),
+                "start_time": start_time,
+                "end_time": end_time,
+                "location": event_data.get('location', ''),
+                "attendees": event_data.get('attendees', []),
+                "user_id": str(current_user['id']),
+                "created_at": now,
+                "updated_at": now,
+                "type": "event"
+            }
+            
+            if str(current_user['id']) not in memory_storage['events']:
+                memory_storage['events'][str(current_user['id'])] = []
+            memory_storage['events'][str(current_user['id'])].append(event)
+            
+            logger.info(f"✅ Event {event_id} created in memory storage")
+            
+            # Return the event with string datetime for JSON serialization
+            return {
+                "id": event["id"],
+                "title": event["title"],
+                "description": event["description"],
+                "start_time": event["start_time"].isoformat(),
+                "end_time": event["end_time"].isoformat(),
+                "location": event["location"],
+                "attendees": event["attendees"],
+                "user_id": event["user_id"],
+                "created_at": event["created_at"].isoformat(),
+                "updated_at": event["updated_at"].isoformat(),
+                "type": "event"
+            }
+        
+        else:
+            # Create event in database
+            query = """
+                INSERT INTO calendar_events (
+                    id, title, description, start_time, end_time, 
+                    location, attendees, user_id, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING *
+            """
+            
+            event = await database.fetch_one(
+                query,
+                event_id,
+                event_data.get('title', ''),
+                event_data.get('description', ''),
+                start_time,
+                end_time,
+                event_data.get('location', ''),
+                event_data.get('attendees', []),
+                current_user['id'],
+                now,
+                now
+            )
+            
+            logger.info(f"✅ Event {event_id} created in database")
+            
+            return {
+                "id": str(event['id']),
+                "title": event['title'],
+                "description": event['description'],
+                "start_time": event['start_time'].isoformat(),
+                "end_time": event['end_time'].isoformat(),
+                "location": event['location'],
+                "attendees": event['attendees'],
+                "user_id": str(event['user_id']),
+                "created_at": event['created_at'].isoformat(),
+                "updated_at": event['updated_at'].isoformat(),
+                "type": "event"
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to create calendar event: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
+
+
+@app.post("/api/events")
+async def create_event_alias(
+    event_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new calendar event - alias for /api/calendar"""
+    return await create_calendar_event(event_data, current_user)
+
 
 @app.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
