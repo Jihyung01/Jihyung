@@ -49,82 +49,77 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
   return headers
 }
 
-// Generic fetch wrapper with error handling
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-  controller?: AbortController
-): Promise<T> {
+// Enhanced fetch wrapper with better error handling
+async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  const url = `${API_BASE}${endpoint}`
+  
+  const defaultOptions: RequestInit = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders()
+    }
+  }
+  
+  const finalOptions = {
+    ...defaultOptions,
+    ...options,
+    headers: {
+      ...defaultOptions.headers,
+      ...options.headers
+    }
+  }
+  
   try {
-    // Initialize demo token if not available
-    if (!config.token) {
-      await initializeDemoToken()
-    }
+    console.log(`API Request: ${options.method || 'GET'} ${url}`, finalOptions.body ? JSON.parse(finalOptions.body as string) : null)
     
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders(),
-        ...options.headers
-      },
-      credentials: 'include',
-      signal: controller?.signal
-    })
-
+    const response = await fetch(url, finalOptions)
+    
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(errorText || `HTTP ${response.status}`)
-    }
-
-    const contentType = response.headers.get('content-type')
-    if (contentType?.includes('application/json')) {
-      return response.json()
+      console.error(`API Error: ${response.status} ${response.statusText}`)
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`)
     }
     
-    return response.text() as T
+    const data = await response.json()
+    console.log(`API Response:`, data)
+    
+    return data
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw error
-    }
-    console.error('API request failed:', error)
+    console.error(`API Request failed:`, error)
     throw error
   }
 }
 
 // GET helper
-export async function getJSON<T>(path: string, controller?: AbortController): Promise<T> {
-  return request<T>(path, { method: 'GET' }, controller)
+async function get<T>(path: string, controller?: AbortController): Promise<T> {
+  return apiRequest(path, { method: 'GET' })
 }
 
 // POST helper
-export async function postJSON<T>(
-  path: string,
-  payload?: unknown,
-  controller?: AbortController
-): Promise<T> {
-  return request<T>(
-    path,
-    {
-      method: 'POST',
-      body: payload ? JSON.stringify(payload) : undefined
-    },
-    controller
-  )
+async function post<T>(path: string, data?: any, controller?: AbortController): Promise<T> {
+  return apiRequest(path, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined
+  })
 }
 
 // PUT helper
-export async function putJSON<T>(
-  path: string, 
-  data: any, 
-  controller?: AbortController
-): Promise<T> {
-  return request<T>(path, {
+async function put<T>(path: string, data?: any, controller?: AbortController): Promise<T> {
+  return apiRequest(path, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  }, controller)
+    body: data ? JSON.stringify(data) : undefined
+  })
 }
+
+// DELETE helper
+async function del<T>(path: string, controller?: AbortController): Promise<T> {
+  return apiRequest(path, { method: 'DELETE' })
+}
+
+// Aliases for backward compatibility
+export const getJSON = get
+export const postJSON = post  
+export const putJSON = put
+export const deleteJSON = del
 
 // PATCH helper
 export async function patchJSON<T>(
@@ -132,46 +127,41 @@ export async function patchJSON<T>(
   data: any, 
   controller?: AbortController
 ): Promise<T> {
-  return request<T>(path, {
+  return apiRequest(path, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
-  }, controller)
+  })
 }
-
-// DELETE helper
-export async function deleteJSON<T>(path: string, controller?: AbortController): Promise<T> {
-  return request<T>(path, { method: 'DELETE' }, controller)
 }
 
 // Health check
-export const healthCheck = () => getJSON<{ status: string }>('/health')
+export const healthCheck = () => get<{ status: string }>('/health')
 
 // Notes API
 export const listNotes = (query?: string, tags?: string[]) => {
   const params = new URLSearchParams()
   if (query) params.set('query', query)
   if (tags?.length) params.set('tags', tags.join(','))
-  return getJSON<any[]>(`/notes?${params}`)
+  return get<any[]>(`/notes?${params}`)
 }
 
 export const createNote = (note: { title?: string; content: string; tags?: string[] }) =>
-  postJSON<any>('/notes', note)
+  post<any>('/notes', note)
 
 export const updateNote = (id: string, note: Partial<{ title: string; content: string; tags: string[] }>) =>
-  putJSON<any>(`/notes/${id}`, note)
+  put<any>(`/notes/${id}`, note)
 
-export const deleteNote = (id: string) => deleteJSON<void>(`/notes/${id}`)
+export const deleteNote = (id: string) => del<void>(`/notes/${id}`)
 
 // Tasks API  
 export const listTasks = (from?: string, to?: string) => {
   const params = new URLSearchParams()
   if (from) params.set('from', from)
   if (to) params.set('to', to)
-  return getJSON<any[]>(`/tasks?${params}`)
+  return get<any[]>(`/tasks?${params}`)
 }
 
-export const getTodayTasks = () => getJSON<any[]>('/tasks/today')
+export const getTodayTasks = () => get<any[]>('/tasks/today')
 
 export const createTask = (task: {
   title: string
@@ -180,7 +170,7 @@ export const createTask = (task: {
   energy?: number
   parent_id?: string
   note_id?: string
-}) => postJSON<any>('/tasks', task)
+}) => post<any>('/tasks', task)
 
 export const updateTask = (id: string, task: Partial<{
   title: string
@@ -188,54 +178,64 @@ export const updateTask = (id: string, task: Partial<{
   due_at: string
   priority: 'low' | 'medium' | 'high'
   energy: number
-}>) => patchJSON<any>(`/tasks/${id}`, task)
+}>) => {
+  console.log('updateTask called with:', { id, task });
+  return apiRequest(`/tasks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(task)
+  });
+}
 
-export const deleteTask = (id: string) => deleteJSON<void>(`/tasks/${id}`)
+export const deleteTask = (id: string) => del<void>(`/tasks/${id}`)
 
 // Calendar
 export const getCalendarEvents = (from: string, to: string) =>
-  getJSON<any[]>(`/calendar?from=${from}&to=${to}`)
+  get<any[]>(`/calendar?from=${from}&to=${to}`)
 
 export const createCalendarEvent = (event: {
   title: string
-  start?: string
-  end?: string  
+  start_at?: string
+  end_at?: string  
   description?: string
-}) => postJSON<any>('/calendar', event)
+  location?: string
+}) => post<any>('/calendar', event)
 
 export const updateCalendarEvent = (id: string, event: Partial<{
   title: string
   start_at: string
   end_at: string
   description: string
-}>) => patchJSON<any>(`/calendar/${id}`, event)
+}>) => apiRequest(`/calendar/${id}`, {
+  method: 'PATCH',
+  body: JSON.stringify(event)
+})
 
-export const deleteCalendarEvent = (id: string) => deleteJSON<void>(`/calendar/${id}`)
+export const deleteCalendarEvent = (id: string) => del<void>(`/calendar/${id}`)
 
 // AI Features
 export const summarize = (text: string, style?: string) =>
-  postJSON<{ summary: string }>('/summarize', { text, style })
+  post<{ summary: string }>('/summarize', { text, style })
 
 export const extractTasks = (text: string) =>
-  postJSON<{ tasks: any[]; created_ids: number[] }>('/extract-tasks', { text })
+  post<{ tasks: any[]; created_ids: number[] }>('/extract-tasks', { text })
 
 export const summarizeYoutube = (url: string) =>
-  postJSON<{ ok: boolean; video_id: string; transcript_text: string; chapters: any[] }>('/summarize/yt', { url })
+  post<{ ok: boolean; video_id: string; transcript_text: string; chapters: any[] }>('/summarize/yt', { url })
 
 // Search
 export const search = (query: string, filters?: Record<string, any>) =>
-  postJSON<{ results: any[]; total: number }>('/search', { query, filters })
+  post<{ results: any[]; total: number }>('/search', { query, filters })
 
 // Time blocking
 export const suggestTimeBlocks = (tasks: string[]) =>
-  postJSON<{ suggestions: any[] }>('/timeblocks/suggest', { tasks })
+  post<{ suggestions: any[] }>('/timeblocks/suggest', { tasks })
 
 export const applyTimeBlocks = (blocks: any[]) =>
-  postJSON<{ created: any[] }>('/timeblocks/apply', { blocks })
+  post<{ created: any[] }>('/timeblocks/apply', { blocks })
 
 // Daily/Weekly briefing
 export const getDailyBrief = () =>
-  getJSON<{
+  get<{
     date: string
     top_tasks: any[]
     time_blocks: any[]

@@ -68,12 +68,20 @@ export const enhancedAPI = {
   // Notes
   async getNotes(query?: string, tags?: string[]): Promise<Note[]> {
     try {
-      const notes = await client.listNotes(query, tags) || [];
+      const notes = await client.listNotes(query, tags);
+      console.log('Raw notes response:', notes);
+      
+      // Ensure we always return an array
+      if (!Array.isArray(notes)) {
+        console.warn('Notes response is not an array:', notes);
+        return [];
+      }
+      
       return notes.map(note => ({
         id: String(note.id) || String(Date.now()),
         title: note.title || '',
         content: note.content || '',
-        tags: note.tags || [],
+        tags: Array.isArray(note.tags) ? note.tags : [],
         created_at: note.createdAt || note.created_at || new Date().toISOString(),
         updated_at: note.updatedAt || note.updated_at || new Date().toISOString(),
         user_id: String(note.user_id) || '1',
@@ -120,14 +128,22 @@ export const enhancedAPI = {
   // Tasks
   async getTasks(from?: string, to?: string, status?: string): Promise<Task[]> {
     try {
-      const tasks = await client.listTasks(from, to) || [];
+      const tasks = await client.listTasks(from, to);
+      console.log('Raw tasks response:', tasks);
+      
+      // Ensure we always return an array
+      if (!Array.isArray(tasks)) {
+        console.warn('Tasks response is not an array:', tasks);
+        return [];
+      }
+      
       const mappedTasks = tasks.map(task => ({
         id: String(task.id) || String(Date.now()),
         title: task.title || '',
         description: task.description || '',
         status: task.status as 'pending' | 'in_progress' | 'completed' | 'cancelled' || 'pending',
         priority: task.priority as 'low' | 'medium' | 'high' || 'medium',
-        energy: task.energy_level === 'high' ? 80 : task.energy_level === 'low' ? 30 : 50,
+        energy: task.energy_level === 'high' ? 80 : task.energy_level === 'low' ? 30 : task.energy || 50,
         due_at: task.due_at || task.due_date || undefined,
         completed_at: task.completed_at || undefined,
         created_at: task.createdAt || task.created_at || new Date().toISOString(),
@@ -192,7 +208,15 @@ export const enhancedAPI = {
   // Calendar
   async getCalendarEvents(from: string, to: string): Promise<CalendarEvent[]> {
     try {
-      const events = await client.getCalendarEvents(from, to) || [];
+      const events = await client.getCalendarEvents(from, to);
+      console.log('Raw calendar events response:', events);
+      
+      // Ensure we always return an array
+      if (!Array.isArray(events)) {
+        console.warn('Calendar events response is not an array:', events);
+        return [];
+      }
+      
       return events.map(event => ({
         id: String(event.id) || String(Date.now()),
         title: event.title || '',
@@ -200,7 +224,7 @@ export const enhancedAPI = {
         start_at: event.start || event.start_at || event.due_at || '',
         end_at: event.end || event.end_at || event.due_at || '',
         location: event.location || '',
-        attendees: event.attendees || [],
+        attendees: Array.isArray(event.attendees) ? event.attendees : [],
         created_at: event.createdAt || event.created_at || new Date().toISOString(),
         updated_at: event.updatedAt || event.updated_at || new Date().toISOString(),
         user_id: String(event.user_id) || '1',
@@ -218,13 +242,17 @@ export const enhancedAPI = {
         throw new Error('Event title is required');
       }
       
+      console.log('Creating calendar event with data:', data);
+      
       const result = await client.createCalendarEvent({
         title: data.title.trim(),
         description: data.description || '',
         start: data.start_at || '',
-        end: data.end_at || data.start_at || ''
+        end: data.end_at || data.start_at || '',
+        location: data.location || ''
       });
       
+      console.log('Calendar event created:', result);
       return result;
     } catch (error) {
       console.error('Enhanced API createCalendarEvent error:', error);

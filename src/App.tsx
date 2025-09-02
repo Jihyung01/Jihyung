@@ -358,7 +358,7 @@ function AISecondBrainApp() {
             <Brain className="h-6 w-6 text-primary absolute top-3 left-3" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold">AI Second Brain 초기화 중...</h2>
+            <h2 className="text-xl font-semibold">Jihyung 초기화 중...</h2>
             <p className="text-muted-foreground">
               지식 그래프와 AI 엔진을 준비하고 있습니다
             </p>
@@ -410,7 +410,7 @@ function AISecondBrainApp() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-primary" weight="bold" />
-              <span className="font-semibold">AI Second Brain</span>
+              <span className="font-semibold">Jihyung</span>
               <Badge variant="outline" className="text-xs">
                 v2.0 Beta
               </Badge>

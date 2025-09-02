@@ -73,7 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex items-center justify-center w-8 h-8 bg-primary rounded-lg">
             <Brain className="w-5 h-5 text-primary-foreground" weight="bold" />
           </div>
-          <h1 className="text-lg font-semibold text-foreground">AI Second Brain</h1>
+          <h1 className="text-lg font-semibold text-foreground">Jihyung</h1>
         </div>
 
         {/* Navigation */}

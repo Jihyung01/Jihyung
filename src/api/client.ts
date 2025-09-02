@@ -184,19 +184,21 @@ export const getCalendarEvents = (from: string, to: string) =>
 
 export const createCalendarEvent = (event: {
   title: string
-  start_at: string
-  end_at: string
+  start: string
+  end: string
   description?: string
-}) => postJSON<any>('/calendar', event)
+  location?: string
+}) => postJSON<any>('/events', event)
 
 export const updateCalendarEvent = (id: number, event: Partial<{
   title: string
-  start_at: string
-  end_at: string
+  start: string
+  end: string
   description: string
-}>) => patchJSON<any>(`/calendar/${id}`, event)
+  location: string
+}>) => patchJSON<any>(`/events/${id}`, event)
 
-export const deleteCalendarEvent = (id: number) => deleteJSON<void>(`/calendar/${id}`)
+export const deleteCalendarEvent = (id: number) => deleteJSON<void>(`/events/${id}`)
 
 // Time blocking
 export const suggestTimeBlocks = (tasks: number[]) =>

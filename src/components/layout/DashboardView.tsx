@@ -55,7 +55,7 @@ export function DashboardView({
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold text-foreground">
-              Welcome to your AI Second Brain
+              Welcome to your Jihyung
             </h1>
             <p className="text-lg text-muted-foreground mt-2">
               State-of-the-art knowledge management with AI, CRDT collaboration, and RAG

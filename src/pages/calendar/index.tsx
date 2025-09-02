@@ -165,7 +165,7 @@ export default function CalendarPage() {
     setIsCreateOpen(true)
   }
 
-  // Create new task
+  // Create new task or calendar event
   const handleCreateTask = async () => {
     if (!form.title.trim()) {
       toast.error('제목을 입력해주세요')
@@ -173,22 +173,32 @@ export default function CalendarPage() {
     }
 
     try {
-      const taskData = {
-        title: form.title.trim(),
-        description: form.description.trim(),
-        due_date: form.due_date,
-        priority: form.priority,
-        recurring_rule: form.recurring_rule || undefined
-      }
-
       if (editingEvent) {
         // Update existing task
+        const taskData = {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          due_date: form.due_date,
+          priority: form.priority,
+          recurring_rule: form.recurring_rule || undefined
+        }
         await updateTask(editingEvent.extendedProps.taskId, taskData)
         toast.success('일정이 수정되었습니다')
       } else {
-        // Create new task
-        await createTask(taskData)
-        toast.success('일정이 생성되었습니다')
+        // Create new calendar event directly
+        const eventData = {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          start_at: form.due_date,
+          end_at: new Date(new Date(form.due_date).getTime() + 60 * 60 * 1000).toISOString(), // 1 hour later
+          location: '',
+          attendees: []
+        }
+        
+        // Import the enhanced API
+        const { enhancedAPI } = await import('../../lib/enhanced-api')
+        await enhancedAPI.createCalendarEvent(eventData)
+        toast.success('캘린더 이벤트가 생성되었습니다')
       }
       
       setIsCreateOpen(false)
@@ -196,7 +206,7 @@ export default function CalendarPage() {
       resetForm()
       loadEvents() // Reload events
     } catch (error) {
-      console.error('Failed to save task:', error)
+      console.error('Failed to save calendar event:', error)
       toast.error('일정 저장에 실패했습니다')
     }
   }

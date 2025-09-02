@@ -294,10 +294,9 @@ export const enhancedAPI = {
       const result = await api.createCalendarEvent({
         title: data.title.trim(),
         description: data.description || '',
-        start_at: data.start_at || '',
-        end_at: data.end_at || data.start_at || '',
-        location: data.location,
-        attendees: data.attendees || []
+        start: data.start_at || '',
+        end: data.end_at || data.start_at || '',
+        location: data.location || ''
       });
       
       console.log('Enhanced API: Calendar event created successfully:', result);
@@ -313,8 +312,9 @@ export const enhancedAPI = {
     return await api.updateCalendarEvent(id, {
       title: data.title,
       description: data.description,
-      start_at: data.start_at,
-      end_at: data.end_at
+      start: data.start_at,
+      end: data.end_at,
+      location: data.location
     });
   },
 

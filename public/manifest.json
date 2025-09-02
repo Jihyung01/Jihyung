@@ -1,6 +1,6 @@
 // public/manifest.json
 {
-  "name": "AI Second Brain",
+  "name": "Jihyung",
   "short_name": "SecondBrain",
   "description": "Your AI-powered productivity companion",
   "start_url": "/",

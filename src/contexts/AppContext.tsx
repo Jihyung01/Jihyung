@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react'
-import { listNotes, createNote as apiCreateNote, updateNote as apiUpdateNote, deleteNote as apiDeleteNote, 
-         listTasks, createTask as apiCreateTask, updateTask as apiUpdateTask, deleteTask as apiDeleteTask, 
-         getCalendarEvents, createCalendarEvent as apiCreateEvent, updateCalendarEvent as apiUpdateEvent, deleteCalendarEvent as apiDeleteEvent } from '../lib/api'
+import enhancedAPI from '../lib/api'
 
 // Types
 export interface Note {
@@ -30,7 +28,66 @@ export interface Note {
   pinned?: boolean
   wordCount?: number
 }
+          export interface Task {
+  id: string
+  title: string
+  description?: string
+  status: string
+  priority: 'low' | 'medium' | 'high'
+  urgency_score: number
+  importance_score: number
+  due_date?: Date
+  reminder_date?: Date
+  completed_at?: Date
+  estimated_duration?: number
+  actual_duration?: number
+  assignee?: string
+  project_id?: string
+  parent_task_id?: string
+  tags: string[]
+  category?: string
+  location?: string
+  energy_level?: string
+  context_tags: string[]
+  recurrence_rule?: string
+  ai_generated: boolean
+  createdAt: Date
+  updatedAt: Date
+  // Keep legacy fields for compatibility
+  completed?: boolean
+  dueDate?: Date
+  project?: string
+  subtasks?: Array<{
+    id: string
+    title: string
+    completed: boolean
+  }>
+}
 
+export interface CalendarEvent {
+  id: string
+  title: string
+  description?: string
+  start: Date
+  end: Date
+  all_day: boolean
+  timezone: string
+  color?: string
+  location?: string
+  meeting_url?: string
+  event_type: string
+  recurrence_rule?: string
+  reminder_minutes: number[]
+  attendees: Record<string, any>
+  status: string
+  visibility: string
+  ai_generated: boolean
+  createdAt: Date
+  updatedAt: Date
+  // Keep legacy fields for compatibility
+  allDay?: boolean
+  type?: 'meeting' | 'deadline' | 'reminder' | 'personal'
+}
 export interface Task {
   id: string
   title: string
@@ -363,19 +420,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         // API call
-        const createdNote = await apiCreateNote(apiNoteData)
+        const createdNote = await enhancedAPI.createNote(apiNoteData)
         
         // Update with server response
-        dispatch({ type: 'UPDATE_NOTE', payload: {
+        const formattedNote: Note = {
           ...createdNote,
-          createdAt: new Date(createdNote.createdAt),
-          updatedAt: new Date(createdNote.updatedAt),
-          last_viewed: createdNote.last_viewed ? new Date(createdNote.last_viewed) : undefined,
+          createdAt: new Date(createdNote.created_at),
+          updatedAt: new Date(createdNote.updated_at),
+          // Map required Note fields
+          content_type: 'markdown',
+          type: 'note',
+          is_pinned: false,
+          is_archived: createdNote.is_archived || false,
+          word_count: createdNote.content?.length || 0,
+          character_count: createdNote.content?.length || 0,
+          reading_time: Math.max(1, Math.floor((createdNote.content?.length || 0) / 1000)),
+          ai_generated: false,
+          view_count: 0,
           // Legacy compatibility
-          starred: createdNote.is_pinned,
-          pinned: createdNote.is_pinned,
-          wordCount: createdNote.word_count
-        }})
+          starred: false,
+          pinned: false,
+          wordCount: createdNote.content?.length || 0
+        }
+        dispatch({ type: 'UPDATE_NOTE', payload: formattedNote })
       } catch (error) {
         console.error('Failed to create note:', error)
         // Could implement rollback logic here
@@ -394,7 +461,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'UPDATE_NOTE', payload: updatedNote })
         
         // API call
-        await apiUpdateNote(note.id, updatedNote)
+        await enhancedAPI.updateNote(note.id, updatedNote)
       } catch (error) {
         console.error('Failed to update note:', error)
         // Could implement rollback logic here
@@ -407,7 +474,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'DELETE_NOTE', payload: id })
         
         // API call
-        await apiDeleteNote(id)
+        await enhancedAPI.deleteNote(id)
       } catch (error) {
         console.error('Failed to delete note:', error)
         // Could implement rollback logic here
@@ -416,27 +483,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     addTask: async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
       try {
-        // Optimistic update
+        // Create optimistic temp task with proper field mapping
         const tempTask: Task = {
           ...taskData,
           id: crypto.randomUUID(),
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          status: taskData.status || 'pending',
+          priority: taskData.priority || 'medium',
+          urgency_score: taskData.urgency_score || 5,
+          importance_score: taskData.importance_score || 5,
+          tags: taskData.tags || [],
+          context_tags: taskData.context_tags || [],
+          ai_generated: false,
+          // Map legacy fields
+          completed: false,
+          dueDate: taskData.due_date,
+          project: taskData.project_id,
+          subtasks: []
         }
+        
+        // Immediate UI update
         dispatch({ type: 'ADD_TASK', payload: tempTask })
 
+        // Convert taskData for API call
+        const apiTaskData = {
+          title: taskData.title,
+          description: taskData.description,
+          status: (taskData.status || 'pending') as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+          priority: taskData.priority || 'medium',
+          due_at: taskData.due_date?.toISOString(),
+          energy: taskData.energy_level === 'high' ? 80 : taskData.energy_level === 'low' ? 30 : 50
+        }
+
         // API call
-        const createdTask = await apiCreateTask(taskData)
+        const createdTask = await enhancedAPI.createTask(apiTaskData)
         
-        // Update with server response
-        dispatch({ type: 'UPDATE_TASK', payload: {
+        // Update with server response, ensuring proper field mapping
+        const updatedTask: Task = {
           ...createdTask,
-          createdAt: new Date(createdTask.createdAt),
-          updatedAt: new Date(createdTask.updatedAt),
-          dueDate: createdTask.dueDate ? new Date(createdTask.dueDate) : undefined
-        }})
+          id: createdTask.id || tempTask.id,
+          createdAt: new Date(createdTask.created_at),
+          updatedAt: new Date(createdTask.updated_at),
+          due_date: createdTask.due_at ? new Date(createdTask.due_at) : undefined,
+          reminder_date: taskData.reminder_date,
+          completed_at: createdTask.completed_at ? new Date(createdTask.completed_at) : undefined,
+          urgency_score: taskData.urgency_score || 5,
+          importance_score: taskData.importance_score || 5,
+          tags: taskData.tags || [],
+          context_tags: taskData.context_tags || [],
+          ai_generated: false,
+          // Legacy compatibility
+          completed: createdTask.status === 'completed',
+          dueDate: createdTask.due_at ? new Date(createdTask.due_at) : undefined,
+          project: taskData.project_id,
+          subtasks: []
+        }
+        
+        dispatch({ type: 'UPDATE_TASK', payload: updatedTask })
       } catch (error) {
         console.error('Failed to create task:', error)
+        // Could implement rollback logic here
       }
     },
 
@@ -444,14 +551,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const updatedTask = {
           ...task,
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          status: task.status as 'pending' | 'in_progress' | 'completed' | 'cancelled'
         }
         
         // Optimistic update
         dispatch({ type: 'UPDATE_TASK', payload: updatedTask })
         
         // API call
-        await apiUpdateTask(task.id, updatedTask)
+        await enhancedAPI.updateTask(task.id, {
+          title: task.title,
+          status: task.status as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+          priority: task.priority,
+          due_at: task.due_date?.toISOString(),
+          energy: task.energy_level === 'high' ? 80 : task.energy_level === 'low' ? 30 : 50
+        })
       } catch (error) {
         console.error('Failed to update task:', error)
       }
@@ -463,7 +577,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'DELETE_TASK', payload: id })
         
         // API call
-        await apiDeleteTask(id)
+        await enhancedAPI.deleteTask(id)
       } catch (error) {
         console.error('Failed to delete task:', error)
       }
@@ -480,17 +594,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         dispatch({ type: 'ADD_EVENT', payload: tempEvent })
 
+        // Convert for API
+        const apiEventData = {
+          title: eventData.title,
+          description: eventData.description,
+          start_at: eventData.start.toISOString(),
+          end_at: eventData.end.toISOString(),
+          location: eventData.location
+        }
+
         // API call
-        const createdEvent = await apiCreateEvent(eventData)
+        const createdEvent = await enhancedAPI.createCalendarEvent(apiEventData)
         
         // Update with server response
-        dispatch({ type: 'UPDATE_EVENT', payload: {
+        const formattedEvent: CalendarEvent = {
           ...createdEvent,
-          createdAt: new Date(createdEvent.createdAt),
-          updatedAt: new Date(createdEvent.updatedAt),
-          start: new Date(createdEvent.start),
-          end: new Date(createdEvent.end)
-        }})
+          createdAt: new Date(createdEvent.created_at),
+          updatedAt: new Date(createdEvent.updated_at),
+          start: new Date(createdEvent.start_at),
+          end: new Date(createdEvent.end_at),
+          // Fill required fields
+          all_day: eventData.all_day || false,
+          timezone: eventData.timezone || 'UTC',
+          event_type: eventData.event_type || 'event',
+          reminder_minutes: eventData.reminder_minutes || [],
+          attendees: eventData.attendees || {},
+          status: eventData.status || 'confirmed',
+          visibility: eventData.visibility || 'private',
+          ai_generated: false,
+          // Legacy compatibility
+          allDay: eventData.all_day || false,
+          type: eventData.event_type as 'meeting' | 'deadline' | 'reminder' | 'personal' || 'personal'
+        }
+        dispatch({ type: 'UPDATE_EVENT', payload: formattedEvent })
       } catch (error) {
         console.error('Failed to create event:', error)
       }
@@ -507,7 +643,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'UPDATE_EVENT', payload: updatedEvent })
         
         // API call
-        await apiUpdateEvent(event.id, updatedEvent)
+        await enhancedAPI.updateCalendarEvent(event.id, {
+          title: event.title,
+          description: event.description,
+          start_at: event.start.toISOString(),
+          end_at: event.end.toISOString()
+        })
       } catch (error) {
         console.error('Failed to update event:', error)
       }
@@ -519,7 +660,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'DELETE_EVENT', payload: id })
         
         // API call
-        await apiDeleteEvent(id)
+        await enhancedAPI.deleteCalendarEvent(id)
       } catch (error) {
         console.error('Failed to delete event:', error)
       }
@@ -538,49 +679,99 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Load from API
         console.log('📡 Making API calls...'); // 디버깅용
         const [notes, tasks, events] = await Promise.all([
-          listNotes(),
-          listTasks(),
-          getCalendarEvents()
+          enhancedAPI.getNotes(),
+          enhancedAPI.getTasks(),
+          enhancedAPI.getCalendarEvents(
+            new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days ago
+            new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()  // 1 year from now
+          )
         ])
         
         console.log('✅ API calls successful:', { notes: notes.length, tasks: tasks.length, events: events.length }); // 디버깅용
         
         // Convert date strings to Date objects and handle field mapping
-        const processedNotes = notes.map(note => ({
-          ...note,
-          createdAt: new Date(note.createdAt),
-          updatedAt: new Date(note.updatedAt),
+        const processedNotes = notes.map((note: any) => ({
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          content_type: note.content_type || 'markdown',
+          summary: note.summary,
+          type: note.type || 'note',
+          tags: note.tags || [],
+          folder: note.folder,
+          color: note.color,
+          is_pinned: note.is_pinned || false,
+          is_archived: note.is_archived || false,
+          word_count: note.word_count || 0,
+          character_count: note.character_count || 0,
+          reading_time: note.reading_time || 0,
+          sentiment_score: note.sentiment_score,
+          ai_generated: note.ai_generated || false,
+          view_count: note.view_count || 0,
           last_viewed: note.last_viewed ? new Date(note.last_viewed) : undefined,
-          // Map legacy fields for compatibility
-          starred: note.is_pinned,
-          pinned: note.is_pinned,
-          wordCount: note.word_count
-        }))
+          createdAt: new Date(note.createdAt || note.created_at),
+          updatedAt: new Date(note.updatedAt || note.updated_at),
+          // Legacy fields for compatibility
+          starred: note.is_pinned || false,
+          pinned: note.is_pinned || false,
+          wordCount: note.word_count || 0
+        } as Note))
         
-        const processedTasks = tasks.map(task => ({
-          ...task,
-          createdAt: new Date(task.createdAt),
-          updatedAt: new Date(task.updatedAt),
-          due_date: task.due_date ? new Date(task.due_date) : undefined,
+        const processedTasks = tasks.map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          priority: task.priority || 'medium',
+          urgency_score: task.urgency_score || 5,
+          importance_score: task.importance_score || 5,
+          due_date: task.due_at ? new Date(task.due_at) : undefined,
           reminder_date: task.reminder_date ? new Date(task.reminder_date) : undefined,
           completed_at: task.completed_at ? new Date(task.completed_at) : undefined,
-          // Map legacy fields for compatibility
+          estimated_duration: task.estimated_duration,
+          actual_duration: task.actual_duration || 0,
+          assignee: task.assignee,
+          project_id: task.project_id,
+          parent_task_id: task.parent_task_id,
+          tags: task.tags || [],
+          category: task.category,
+          location: task.location,
+          energy_level: task.energy_level,
+          context_tags: task.context_tags || [],
+          recurrence_rule: task.recurrence_rule,
+          ai_generated: task.ai_generated || false,
+          createdAt: new Date(task.createdAt || task.created_at),
+          updatedAt: new Date(task.updatedAt || task.updated_at),
+          // Legacy fields for compatibility
           completed: task.status === 'completed',
-          dueDate: task.due_date ? new Date(task.due_date) : undefined,
-          project: task.project_id,
-          subtasks: []
-        }))
+          dueDate: task.due_at ? new Date(task.due_at) : undefined,
+          project: task.project_id || null
+        } as Task))
         
-        const processedEvents = events.map(event => ({
-          ...event,
-          createdAt: new Date(event.createdAt),
-          updatedAt: new Date(event.updatedAt),
-          start: new Date(event.start),
-          end: new Date(event.end),
-          // Map legacy fields for compatibility
-          allDay: event.all_day,
-          type: event.event_type as 'meeting' | 'deadline' | 'reminder' | 'personal'
-        }))
+        const processedEvents = events.map((event: any) => ({
+          id: event.id,
+          title: event.title,
+          description: event.description,
+          start: new Date(event.start || event.start_time),
+          end: new Date(event.end || event.end_time),
+          all_day: event.all_day || false,
+          timezone: event.timezone || 'UTC',
+          color: event.color,
+          location: event.location,
+          meeting_url: event.meeting_url,
+          event_type: event.event_type || 'event',
+          recurrence_rule: event.recurrence_rule,
+          reminder_minutes: event.reminder_minutes || [],
+          attendees: event.attendees || {},
+          status: event.status || 'confirmed',
+          visibility: event.visibility || 'private',
+          ai_generated: event.ai_generated || false,
+          createdAt: new Date(event.createdAt || event.created_at),
+          updatedAt: new Date(event.updatedAt || event.updated_at),
+          // Legacy fields for compatibility
+          allDay: event.all_day || false,
+          type: (event.event_type as 'meeting' | 'deadline' | 'reminder' | 'personal') || 'personal'
+        } as CalendarEvent))
         
         dispatch({ 
           type: 'LOAD_DATA', 

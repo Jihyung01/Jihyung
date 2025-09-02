@@ -133,7 +133,7 @@ const GlobalStatusBar: React.FC<{
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
             <Brain className="h-6 w-6 text-primary" weight="bold" />
-            <span className="font-bold text-lg">AI Second Brain</span>
+            <span className="font-bold text-lg">Jihyung</span>
             <Badge variant="outline" className="text-xs font-medium">
               v3.0
             </Badge>

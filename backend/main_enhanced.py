@@ -49,6 +49,8 @@ memory_storage = {
     'notes': {},
     'tasks': {},
     'events': {},
+    'user_tasks': {},  # user_id -> [tasks]
+    'user_events': {},  # user_id -> [events]
     'counters': {'note_id': 1, 'task_id': 1, 'event_id': 1}
 }
 
@@ -99,18 +101,18 @@ async def lifespan(app: FastAPI):
     # Startup
     await init_db()
     await init_redis()
-    logger.info("🚀 AI Second Brain Backend started successfully!")
+    logger.info("🚀 Jihyung Backend started successfully!")
     yield
     # Shutdown
     if db_pool:
         await db_pool.close()
     if redis_client:
         await redis_client.close()
-    logger.info("👋 AI Second Brain Backend shut down gracefully")
+    logger.info("👋 Jihyung Backend shut down gracefully")
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
-    title="AI Second Brain - Enhanced",
+    title="Jihyung - Enhanced",
     description="최고 수준의 AI 기반 생산성 플랫폼",
     version="2.0.0",
     lifespan=lifespan
@@ -125,7 +127,11 @@ app.add_middleware(
         "http://localhost:8006",
         "http://127.0.0.1:8006",
         "http://0.0.0.0:5178",
-        "http://0.0.0.0:8006"
+        "http://0.0.0.0:8006",
+        "https://jihyung.vercel.app",
+        "https://jihyung-git-main.vercel.app",
+        "https://preview.vercel.app",
+        "https://*.vercel.app"
     ],
     allow_credentials=True,  # 인증을 위해 다시 활성화
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -179,6 +185,8 @@ async def init_db():
         memory_storage['notes'] = {}
         memory_storage['tasks'] = {}
         memory_storage['events'] = {}
+        memory_storage['user_tasks'] = {}
+        memory_storage['user_events'] = {}
         memory_storage['settings'] = {}
         logger.info("✅ 메모리 저장소 초기화 완료")
         return
@@ -250,6 +258,8 @@ async def init_db():
         memory_storage['notes'] = {}
         memory_storage['tasks'] = {}
         memory_storage['events'] = {}
+        memory_storage['user_tasks'] = {}
+        memory_storage['user_events'] = {}
         memory_storage['settings'] = {}
         logger.info("✅ 메모리 저장소 초기화 완료")
 
@@ -564,6 +574,7 @@ class TaskCreate(BaseModel):
     tags: Optional[List[str]] = None
     category: Optional[str] = None
     location: Optional[str] = None
+    attendees: Optional[List[str]] = None  # 참석자 필드 추가
     energy_level: Optional[str] = None
     context_tags: Optional[List[str]] = None
     recurrence_rule: Optional[str] = None
@@ -582,7 +593,7 @@ class TaskResponse(BaseModel):
     reminder_date: Optional[datetime]
     completed_at: Optional[datetime]
     estimated_duration: Optional[int]
-    actual_duration: Optional[int]
+    actual_duration: Optional[int] = 0  # Set default value
     assignee: Optional[str]
     project_id: Optional[str]
     parent_task_id: Optional[str]
@@ -590,11 +601,14 @@ class TaskResponse(BaseModel):
     category: Optional[str]
     location: Optional[str]
     energy_level: Optional[str]
+    energy: Optional[int] = 5  # Add energy field
     context_tags: List[str]
     recurrence_rule: Optional[str]
     ai_generated: bool
-    createdAt: datetime
-    updatedAt: datetime
+    created_at: Optional[datetime] = None  # Use snake_case for consistency
+    updated_at: Optional[datetime] = None  # Use snake_case for consistency
+    createdAt: datetime  # Primary timestamp field
+    updatedAt: datetime  # Primary timestamp field
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
@@ -658,6 +672,7 @@ class CalendarEventResponse(BaseModel):
 
 class AIRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
+    message: Optional[str] = None  # Add message field for backward compatibility
     context: Optional[str] = None
     type: Optional[str] = None
     model: str = "gpt-4"
@@ -2108,6 +2123,23 @@ async def get_note_versions(note_id: str, current_user: dict = Depends(get_curre
 
 # ========== ENHANCED TASKS API ==========
 
+# ========== HELPER FUNCTIONS ==========
+
+def _parse_datetime(dt_value):
+    """Parse datetime from various formats"""
+    if dt_value is None:
+        return None
+    if isinstance(dt_value, str):
+        try:
+            return datetime.fromisoformat(dt_value.replace('Z', '+00:00'))
+        except:
+            return datetime.now(timezone.utc)
+    if isinstance(dt_value, datetime):
+        return dt_value
+    return datetime.now(timezone.utc)
+
+# ========== ENHANCED TASKS API ==========
+
 @app.get("/api/tasks", response_model=List[TaskResponse])
 async def get_tasks(
     current_user: dict = Depends(get_current_user),
@@ -2126,106 +2158,131 @@ async def get_tasks(
         user_id = current_user['id']
         user_tasks = []
         
-        # 사용자의 태스크들 필터링
-        for task_id, task in memory_storage['tasks'].items():
-            if task['user_id'] == user_id:
-                # 상태 필터링
-                if status and task.get('status') != status:
-                    continue
-                # 우선순위 필터링
-                if priority and task.get('priority') != priority:
-                    continue
-                # 카테고리 필터링
-                if category and task.get('category') != category:
-                    continue
-                # 마감임박 필터링
-                if due_soon and task.get('due_date'):
-                    if task['due_date'] > datetime.utcnow() + timedelta(days=3):
+        # memory_storage에서 사용자의 태스크들 가져오기
+        try:
+            if 'user_tasks' in memory_storage and user_id in memory_storage['user_tasks']:
+                for task in memory_storage['user_tasks'][user_id]:
+                    # 상태 필터링
+                    if status and task.get('status') != status:
                         continue
-                # 연체 필터링
-                if overdue and task.get('due_date'):
-                    if task['due_date'] > datetime.utcnow() or task.get('status') == 'completed':
+                    # 우선순위 필터링
+                    if priority and task.get('priority') != priority:
                         continue
-                
-                user_tasks.append(task)
-        
-        # 정렬 (마감일순, 우선순위순)
-        user_tasks.sort(key=lambda x: (
-            x.get('due_date') or datetime.max,
-            {'high': 1, 'medium': 2, 'low': 3}.get(x.get('priority', 'medium'), 2)
-        ))
-        
+                    # 카테고리 필터링
+                    if category and task.get('category') != category:
+                        continue
+                    
+                    # 응답 형식에 맞게 변환
+                    formatted_task = {
+                        'id': task.get('id'),
+                        'title': task.get('title', ''),
+                        'description': task.get('description', ''),
+                        'status': task.get('status', 'pending'),
+                        'priority': task.get('priority', 'medium'),
+                        'urgency_score': task.get('urgency_score', 5),
+                        'importance_score': task.get('importance_score', 5),
+                        'due_at': task.get('due_date'),  # Map due_date to due_at
+                        'due_date': task.get('due_date'),  # Keep for backward compatibility
+                        'all_day': task.get('all_day', True),
+                        'reminder_date': task.get('reminder_date'),
+                        'completed_at': task.get('completed_at'),
+                        'estimated_duration': task.get('estimated_duration'),
+                        'actual_duration': task.get('actual_duration', 0),  # Default to 0
+                        'assignee': task.get('assignee'),
+                        'project_id': task.get('project_id'),
+                        'parent_task_id': task.get('parent_task_id'),
+                        'tags': task.get('tags', []),
+                        'category': task.get('category'),
+                        'location': task.get('location'),
+                        'energy_level': task.get('energy_level', 'medium'),
+                        'energy': task.get('energy', 5),
+                        'context_tags': task.get('context_tags', []),
+                        'recurrence_rule': task.get('recurrence_rule'),
+                        'ai_generated': task.get('ai_generated', False),
+                        'created_at': _parse_datetime(task.get('created_at')),
+                        'updated_at': _parse_datetime(task.get('updated_at')),
+                        'createdAt': _parse_datetime(task.get('created_at')),
+                        'updatedAt': _parse_datetime(task.get('updated_at')),
+                    }
+                    user_tasks.append(formatted_task)
+        except Exception as e:
+            logger.warning(f"Error loading tasks from memory: {e}")
+            
         # 페이지네이션
         return user_tasks[offset:offset + limit]
     
     async with db_pool.acquire() as connection:
-        query_parts = ["SELECT * FROM tasks WHERE user_id = $1"]
-        params = [current_user['id']]
-        param_count = 1
-        
-        if status:
-            param_count += 1
-            query_parts.append(f"AND status = ${param_count}")
-            params.append(status)
-        
-        if priority:
-            param_count += 1
-            query_parts.append(f"AND priority = ${param_count}")
-            params.append(priority)
-        
-        if category:
-            param_count += 1
-            query_parts.append(f"AND category = ${param_count}")
-            params.append(category)
-        
-        if project_id:
-            param_count += 1
-            query_parts.append(f"AND project_id = ${param_count}")
-            params.append(uuid.UUID(project_id))
-        
-        if due_soon:
-            query_parts.append("AND due_date BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '7 days'")
-        
-        if overdue:
-            query_parts.append("AND due_date < CURRENT_TIMESTAMP AND status != 'completed'")
-        
-        query_parts.append("ORDER BY urgency_score DESC, importance_score DESC, due_date ASC")
-        query_parts.append(f"LIMIT {limit} OFFSET {offset}")
-        
-        query = " ".join(query_parts)
-        tasks = await connection.fetch(query, *params)
-        
-        return [
-            {
-                "id": str(task['id']),
-                "title": task['title'],
-                "description": task['description'],
-                "status": task['status'],
-                "priority": task['priority'],
-                "urgency_score": task['urgency_score'],
-                "importance_score": task['importance_score'],
-                "due_at": task['due_date'],  # Return as due_at for frontend compatibility
-                "due_date": task['due_date'],  # Keep for backward compatibility
-                "all_day": task.get('all_day', True),  # Default to True if not set
-                "reminder_date": task['reminder_date'],
-                "completed_at": task['completed_at'],
-                "estimated_duration": task['estimated_duration'],
-                "actual_duration": task['actual_duration'],
-                "assignee": task['assignee'],
-                "project_id": str(task['project_id']) if task['project_id'] else None,
-                "parent_task_id": str(task['parent_task_id']) if task['parent_task_id'] else None,
-                "tags": task['tags'] or [],
-                "category": task['category'],
-                "location": task['location'],
-                "energy_level": task['energy_level'],
-                "context_tags": task['context_tags'] or [],
-                "recurrence_rule": task['recurrence_rule'],
-                "ai_generated": task['ai_generated'],
-                "createdAt": task['created_at'],
-                "updatedAt": task['updated_at']
-            }
-            for task in tasks
-        ]
+        try:
+            query_parts = ["SELECT * FROM tasks WHERE user_id = $1"]
+            params = [uuid.UUID(current_user['id'])]
+            param_count = 1
+            
+            if status:
+                param_count += 1
+                query_parts.append(f"AND status = ${param_count}")
+                params.append(status)
+            
+            if priority:
+                param_count += 1
+                query_parts.append(f"AND priority = ${param_count}")
+                params.append(priority)
+            
+            if category:
+                param_count += 1
+                query_parts.append(f"AND category = ${param_count}")
+                params.append(category)
+            
+            if project_id:
+                param_count += 1
+                query_parts.append(f"AND project_id = ${param_count}")
+                params.append(uuid.UUID(project_id))
+            
+            if due_soon:
+                query_parts.append("AND due_date BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '7 days'")
+            
+            if overdue:
+                query_parts.append("AND due_date < CURRENT_TIMESTAMP AND status != 'completed'")
+            
+            query_parts.append("ORDER BY urgency_score DESC, importance_score DESC, due_date ASC")
+            query_parts.append(f"LIMIT {limit} OFFSET {offset}")
+            
+            query = " ".join(query_parts)
+            tasks = await connection.fetch(query, *params)
+            
+            return [
+                {
+                    "id": str(task['id']),
+                    "title": task['title'],
+                    "description": task['description'],
+                    "status": task['status'],
+                    "priority": task['priority'],
+                    "urgency_score": task['urgency_score'],
+                    "importance_score": task['importance_score'],
+                    "due_at": task['due_date'],  # Return as due_at for frontend compatibility
+                    "due_date": task['due_date'],  # Keep for backward compatibility
+                    "all_day": task.get('all_day', True),  # Default to True if not set
+                    "reminder_date": task['reminder_date'],
+                    "completed_at": task['completed_at'],
+                    "estimated_duration": task['estimated_duration'],
+                    "actual_duration": task['actual_duration'],
+                    "assignee": task['assignee'],
+                    "project_id": str(task['project_id']) if task['project_id'] else None,
+                    "parent_task_id": str(task['parent_task_id']) if task['parent_task_id'] else None,
+                    "tags": task['tags'] or [],
+                    "category": task['category'],
+                    "location": task['location'],
+                    "energy_level": task['energy_level'],
+                    "context_tags": task['context_tags'] or [],
+                    "recurrence_rule": task['recurrence_rule'],
+                    "ai_generated": task['ai_generated'],
+                    "createdAt": task['created_at'],
+                    "updatedAt": task['updated_at']
+                }
+                for task in tasks
+            ]
+        except Exception as e:
+            logger.error(f"Error fetching tasks from database: {e}")
+            return []
 
 # ============== Calendar Management Endpoints ==============
 
@@ -2341,8 +2398,239 @@ async def get_calendar_events(
         raise HTTPException(status_code=500, detail=f"Failed to get calendar events: {str(e)}")
 
 
-@app.post("/api/tasks/", response_model=dict)
-async def create_task(task: dict, current_user: dict = Depends(get_current_user)):
+@app.post("/api/calendar")
+async def create_calendar_event(
+    event_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new calendar event"""
+    try:
+        event_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        
+        # Parse dates safely
+        start_str = event_data.get('start_at') or event_data.get('start', '')
+        end_str = event_data.get('end_at') or event_data.get('end', start_str)
+        
+        if not start_str:
+            raise HTTPException(status_code=400, detail="start_at is required")
+            
+        try:
+            # Handle different date formats
+            if 'T' in start_str:
+                start_date = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+            else:
+                start_date = datetime.fromisoformat(start_str)
+                
+            if end_str and end_str != start_str:
+                if 'T' in end_str:
+                    end_date = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
+                else:
+                    end_date = datetime.fromisoformat(end_str)
+            else:
+                # Default to 1 hour duration
+                end_date = start_date + timedelta(hours=1)
+                
+        except ValueError as date_error:
+            logger.error(f"❌ Date parsing error: {date_error}")
+            raise HTTPException(status_code=400, detail=f"Invalid date format: {str(date_error)}")
+        
+        logger.info(f"📅 Creating calendar event: {event_data.get('title', '')} from {start_date} to {end_date}")
+        
+        if db_pool is not None:
+            async with db_pool.acquire() as connection:
+                query = """
+                INSERT INTO calendar_events (id, user_id, title, description, start_time, end_time, location, attendees, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING *
+                """
+                result = await connection.fetchrow(
+                    query,
+                    uuid.UUID(event_id),
+                    uuid.UUID(current_user['id']),
+                    event_data.get('title', ''),
+                    event_data.get('description', ''),
+                    start_date,
+                    end_date,
+                    event_data.get('location', ''),
+                    json.dumps(event_data.get('attendees', [])),
+                    now,
+                    now
+                )
+                
+                return {
+                    "id": str(result['id']),
+                    "title": result['title'],
+                    "description": result['description'],
+                    "start_at": result['start_time'].isoformat(),
+                    "end_at": result['end_time'].isoformat(),
+                    "location": result['location'],
+                    "attendees": json.loads(result['attendees']) if result['attendees'] else [],
+                    "user_id": current_user['id'],
+                    "created_at": result['created_at'].isoformat(),
+                    "updated_at": result['updated_at'].isoformat(),
+                    "type": "event"
+                }
+        else:
+            # Memory storage
+            event = {
+                'id': event_id,
+                'user_id': current_user['id'],
+                'title': event_data.get('title', ''),
+                'description': event_data.get('description', ''),
+                'start_time': start_date,
+                'end_time': end_date,
+                'location': event_data.get('location', ''),
+                'attendees': event_data.get('attendees', []),
+                'created_at': now,
+                'updated_at': now
+            }
+            
+            # memory_storage의 user_events에 추가
+            if 'user_events' not in memory_storage:
+                memory_storage['user_events'] = {}
+            if current_user['id'] not in memory_storage['user_events']:
+                memory_storage['user_events'][current_user['id']] = []
+            
+            memory_storage['user_events'][current_user['id']].append(event)
+            
+            logger.info(f"✅ Calendar event {event_id} created in memory")
+            
+            return {
+                "id": event_id,
+                "title": event['title'],
+                "description": event['description'],
+                "start_at": event['start_time'].isoformat(),
+                "end_at": event['end_time'].isoformat(),
+                "location": event['location'],
+                "attendees": event['attendees'],
+                "user_id": current_user['id'],
+                "created_at": event['created_at'].isoformat(),
+                "updated_at": event['updated_at'].isoformat(),
+                "type": "event"
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to create calendar event: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
+
+
+# @app.post("/api/tasks", response_model=dict)
+# async def create_task_simple(task: dict, current_user: dict = Depends(get_current_user)):
+    """Create a new task with simplified endpoint"""
+    try:
+        task_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        
+        if db_pool is not None:
+            # Database creation logic
+            async with db_pool.acquire() as connection:
+                query = """
+                INSERT INTO tasks (id, user_id, title, description, due_date, all_day, priority, status, location, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                RETURNING *
+                """
+                result = await connection.fetchrow(
+                    query,
+                    uuid.UUID(task_id),
+                    uuid.UUID(current_user['id']),
+                    task["title"],
+                    task.get("description", ""),
+                    task.get("due_at"),
+                    task.get("all_day", True),
+                    task.get("priority", "medium"),
+                    task.get("status", "pending"),
+                    task.get("location", ""),
+                    now,
+                    now
+                )
+                
+                return {
+                    "id": str(result['id']),
+                    "title": result['title'],
+                    "description": result['description'] or "",
+                    "due_at": result['due_date'].isoformat() if result['due_date'] else None,
+                    "all_day": result['all_day'],
+                    "type": "task",
+                    "priority": result['priority'],
+                    "status": result['status'],
+                    "location": result.get('location', ''),
+                    "created_at": result['created_at'].isoformat(),
+                    "updated_at": result['updated_at'].isoformat()
+                }
+        else:
+            # Memory storage
+            new_task = {
+                'id': task_id,
+                'user_id': current_user['id'],
+                'title': task.get('title', ''),
+                'description': task.get('description', ''),
+                'status': task.get('status', 'pending'),
+                'priority': task.get('priority', 'medium'),
+                'urgency_score': 5,
+                'importance_score': 5,
+                'due_date': datetime.fromisoformat(task['due_at']) if task.get('due_at') else None,
+                'all_day': task.get('all_day', True),
+                'reminder_date': None,
+                'estimated_duration': task.get('estimated_duration'),
+                'assignee': task.get('assignee'),
+                'project_id': task.get('project_id'),
+                'parent_task_id': task.get('parent_task_id'),
+                'tags': task.get('tags', []),
+                'category': task.get('category'),
+                'location': task.get('location', ''),
+                'energy_level': task.get('energy_level', 'medium'),
+                'energy': task.get('energy', 5),
+                'context_tags': task.get('context_tags', []),
+                'recurrence_rule': task.get('recurrence_rule'),
+                'ai_generated': False,
+                'created_at': now,
+                'updated_at': now,
+                'completed_at': None
+            }
+            
+            memory_storage['tasks'][task_id] = new_task
+            logger.info(f"✅ Task created in memory: {task_id}")
+            
+            return {
+                "id": task_id,
+                "title": new_task['title'],
+                "description": new_task['description'],
+                "status": new_task['status'],
+                "priority": new_task['priority'],
+                "urgency_score": new_task['urgency_score'],
+                "importance_score": new_task['importance_score'],
+                "due_at": new_task['due_date'].isoformat() if new_task['due_date'] else None,
+                "due_date": new_task['due_date'].isoformat() if new_task['due_date'] else None,
+                "all_day": new_task['all_day'],
+                "reminder_date": None,
+                "completed_at": None,
+                "estimated_duration": new_task['estimated_duration'],
+                "actual_duration": 0,
+                "assignee": new_task['assignee'],
+                "project_id": new_task['project_id'],
+                "parent_task_id": new_task['parent_task_id'],
+                "tags": new_task['tags'],
+                "category": new_task['category'],
+                "location": new_task['location'],
+                "energy_level": new_task['energy_level'],
+                "energy": new_task['energy'],
+                "context_tags": new_task['context_tags'],
+                "recurrence_rule": new_task['recurrence_rule'],
+                "ai_generated": new_task['ai_generated'],
+                "created_at": new_task['created_at'].isoformat(),
+                "updated_at": new_task['updated_at'].isoformat(),
+                "createdAt": new_task['created_at'].isoformat(),
+                "updatedAt": new_task['updated_at'].isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to create task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create task: {str(e)}")
+
+
+# @app.post("/api/tasks/", response_model=dict)
+# async def create_task(task: dict, current_user: dict = Depends(get_current_user)):
     """Create a new task"""
     try:
         task_id = str(uuid.uuid4())
@@ -2385,35 +2673,41 @@ async def create_task(task: dict, current_user: dict = Depends(get_current_user)
                     "updated_at": result['updated_at'].isoformat()
                 }
         else:
-            # In-memory fallback
+            # In-memory fallback - create task only, not calendar event
             if "tasks" not in memory_storage:
                 memory_storage["tasks"] = {}
             
-            event_id = str(uuid.uuid4())
+            task_id = str(uuid.uuid4())
             task = {
-                "id": event_id,
+                "id": task_id,
                 "user_id": current_user['id'],
-                **task_data,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "title": task_data.get('title', ''),
+                "description": task_data.get('description', ''),
+                "due_date": task_data.get('due_date'),
+                "all_day": task_data.get('all_day', True),
+                "priority": task_data.get('priority', 'medium'),
+                "status": task_data.get('status', 'pending'),
+                "location": task_data.get('location', ''),
+                "created_at": now,
+                "updated_at": now
             }
-            memory_storage["tasks"][event_id] = task
+            memory_storage["tasks"][task_id] = task
             
-            event = {
-                "id": f"task-{event_id}",
+            logger.info(f"✅ Created task in memory: {task_id}")
+            
+            return {
+                "id": task_id,
                 "title": task['title'],
-                "description": task.get('description', ''),
-                "start": task.get('due_date'),
-                "end": task.get('due_date'),
+                "description": task['description'],
+                "due_date": task['due_date'].isoformat() if task['due_date'] else None,
+                "all_day": task['all_day'],
                 "type": "task",
-                "completed": False,
-                "priority": task.get('priority', 'medium'),
-                "allDay": True,
-                "location": task.get('location', ''),
-                "attendees": task.get('attendees', [])
+                "priority": task['priority'],
+                "status": task['status'],
+                "location": task['location'],
+                "created_at": task['created_at'].isoformat(),
+                "updated_at": task['updated_at'].isoformat()
             }
-            
-            logger.info(f"✅ Created calendar event in memory: {event['id']}")
-            return event
             
     except Exception as e:
         logger.error(f"❌ Error creating calendar event: {str(e)}")
@@ -2509,7 +2803,13 @@ async def create_calendar_event(
             "updated_at": datetime.now().isoformat()
         }
         
-        memory_storage['events'][event_id] = event
+        # memory_storage의 user_events에 추가
+        if 'user_events' not in memory_storage:
+            memory_storage['user_events'] = {}
+        if current_user['id'] not in memory_storage['user_events']:
+            memory_storage['user_events'][current_user['id']] = []
+        
+        memory_storage['user_events'][current_user['id']].append(event)
         logger.info(f"✅ Calendar event created in memory: {event}")
         return event
         
@@ -3125,15 +3425,28 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
         due_date_value = getattr(task_data, 'due_at', None) or getattr(task_data, 'due_date', None)
         if due_date_value and isinstance(due_date_value, str):
             try:
-                # Parse ISO format and ensure it's timezone-aware
+                # Parse ISO format
                 due_date_value = datetime.fromisoformat(due_date_value.replace('Z', '+00:00'))
-                if due_date_value.tzinfo is None:
-                    due_date_value = due_date_value.replace(tzinfo=timezone.utc)
+                
+                # For all_day tasks, use the date without timezone adjustments
+                if getattr(task_data, 'all_day', True):
+                    # Convert to date and then to datetime at 00:00 in UTC
+                    date_only = due_date_value.date()
+                    due_date_value = datetime.combine(date_only, datetime.min.time()).replace(tzinfo=timezone.utc)
+                else:
+                    # For timed tasks, ensure timezone-aware
+                    if due_date_value.tzinfo is None:
+                        due_date_value = due_date_value.replace(tzinfo=timezone.utc)
             except:
                 due_date_value = None
-        elif due_date_value and isinstance(due_date_value, datetime) and due_date_value.tzinfo is None:
-            # Make naive datetime timezone-aware
-            due_date_value = due_date_value.replace(tzinfo=timezone.utc)
+        elif due_date_value and isinstance(due_date_value, datetime):
+            if getattr(task_data, 'all_day', True):
+                # For all_day tasks, use date only
+                date_only = due_date_value.date()
+                due_date_value = datetime.combine(date_only, datetime.min.time()).replace(tzinfo=timezone.utc)
+            elif due_date_value.tzinfo is None:
+                # Make naive datetime timezone-aware
+                due_date_value = due_date_value.replace(tzinfo=timezone.utc)
         
         # Handle reminder_date with timezone
         reminder_date_value = getattr(task_data, 'reminder_date', None)
@@ -3180,6 +3493,16 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
             
             memory_storage['tasks'][task_id] = new_task
             
+            # memory_storage의 tasks에도 추가 (user_id를 키로 사용)
+            user_id = current_user['id']
+            if 'user_tasks' not in memory_storage:
+                memory_storage['user_tasks'] = {}
+            if user_id not in memory_storage['user_tasks']:
+                memory_storage['user_tasks'][user_id] = []
+            memory_storage['user_tasks'][user_id].append(new_task)
+            
+            logger.info(f"✅ Task {task_id} created in memory for user {user_id}")
+            
             # 실시간 업데이트 전송
             try:
                 await manager.send_personal_message({
@@ -3215,8 +3538,10 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 "context_tags": new_task["context_tags"],
                 "recurrence_rule": new_task["recurrence_rule"],
                 "ai_generated": new_task["ai_generated"],
-                "createdAt": new_task["created_at"],
-                "updatedAt": new_task["updated_at"]
+                "created_at": now,  # Add created_at field
+                "updated_at": now,  # Add updated_at field
+                "createdAt": now,
+                "updatedAt": now
             }
         
         async with db_pool.acquire() as connection:
@@ -3276,7 +3601,8 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
             except Exception as e:
                 logger.warning(f"Real-time notification failed: {e}")
             
-            return {
+            # 태스크에 due_date가 있으면 캘린더 이벤트도 생성
+            created_task_response = {
                 "id": str(task['id']),
                 "title": task['title'],
                 "description": task['description'],
@@ -3304,6 +3630,64 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 "createdAt": task['created_at'].isoformat() if task['created_at'] else None,
                 "updatedAt": task['updated_at'].isoformat() if task['updated_at'] else None
             }
+            
+            # 캘린더 이벤트 자동 생성 (due_date가 있는 경우, 중복 체크)
+            if task['due_date']:
+                try:
+                    # 기존 이벤트 중복 체크
+                    user_events = memory_storage.get('user_events', {}).get(current_user['id'], [])
+                    task_title = f"📋 {task['title']}"
+                    existing_event = None
+                    for event in user_events:
+                        if (event.get('title') == task_title and 
+                            event.get('event_type') == 'task' and
+                            event.get('task_id') == str(task['id'])):
+                            existing_event = event
+                            break
+                    
+                    if not existing_event:
+                        event_start = task['due_date']
+                        event_end = event_start + timedelta(hours=1)  # 기본 1시간 이벤트
+                        
+                        calendar_event = {
+                            "id": str(uuid.uuid4()),
+                            "user_id": current_user['id'],
+                            "title": task_title,
+                            "description": task['description'] or '',
+                            "start": event_start,
+                            "end": event_end,
+                            "all_day": task['all_day'],
+                            "timezone": "UTC",
+                            "color": "#3B82F6",  # 파란색으로 태스크 이벤트 구분
+                            "location": task['location'],
+                            "meeting_url": None,
+                            "event_type": "task",
+                            "recurrence_rule": task['recurrence_rule'],
+                            "reminder_minutes": [15],
+                            "attendees": getattr(task_data, 'attendees', []),
+                            "status": "confirmed",
+                            "visibility": "private",
+                            "ai_generated": False,
+                            "created_at": now,
+                            "updated_at": now,
+                            "task_id": str(task['id'])  # 태스크와 연결
+                        }
+                        
+                        # 메모리에 캘린더 이벤트 저장
+                        if 'user_events' not in memory_storage:
+                            memory_storage['user_events'] = {}
+                        if current_user['id'] not in memory_storage['user_events']:
+                            memory_storage['user_events'][current_user['id']] = []
+                        
+                        memory_storage['user_events'][current_user['id']].append(calendar_event)
+                        logger.info(f"📅 Calendar event created for task {task_id}")
+                    else:
+                        logger.info(f"📅 Calendar event already exists for task {task_id}")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to create calendar event for task: {e}")
+            
+            return created_task_response
             
     except Exception as e:
         logger.error(f"❌ Error creating task: {str(e)}")
@@ -3401,55 +3785,115 @@ async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = 
         return {"message": "Task updated successfully"}
 
 @app.patch("/api/tasks/{task_id}")
-async def update_task_partial(task_id: str, task_data: TaskUpdate, current_user: dict = Depends(get_current_user)):
+async def update_task_partial(task_id: str, task_data: dict, current_user: dict = Depends(get_current_user)):
     """Partially update task with flexible field mapping"""
-    async with db_pool.acquire() as connection:
-        # Check if task exists and belongs to user
-        existing_task = await connection.fetchrow(
-            "SELECT * FROM tasks WHERE id = $1 AND user_id = $2",
-            uuid.UUID(task_id), current_user['id']
-        )
+    try:
+        logger.info(f"🔄 Updating task {task_id} with data: {task_data}")
         
-        if not existing_task:
-            raise HTTPException(status_code=404, detail="Task not found")
-        
-        # Build dynamic update query based on provided fields
-        update_fields = []
-        params = []
-        param_count = 0
-        
-        # Handle due_at vs due_date field mapping
-        due_date_value = task_data.due_at or task_data.due_date
-        
-        # Map frontend fields to backend fields
-        field_mappings = {
-            'title': task_data.title,
-            'description': task_data.description,
-            'status': task_data.status,
-            'priority': task_data.priority,
-            'urgency_score': task_data.urgency_score,
-            'importance_score': task_data.importance_score,
-            'due_date': due_date_value,
-            'all_day': task_data.all_day,
-            'reminder_date': task_data.reminder_date,
-            'estimated_duration': task_data.estimated_duration,
-            'assignee': task_data.assignee,
-            'project_id': uuid.UUID(task_data.project_id) if task_data.project_id else None,
-            'parent_task_id': uuid.UUID(task_data.parent_task_id) if task_data.parent_task_id else None,
-            'tags': task_data.tags,
-            'category': task_data.category,
-            'location': task_data.location,
-            'energy_level': task_data.energy_level,
-            'context_tags': task_data.context_tags,
-            'recurrence_rule': task_data.recurrence_rule
-        }
-        
-        # Build update query dynamically
-        for field, value in field_mappings.items():
-            if value is not None:  # Only update fields that are provided
-                param_count += 1
-                update_fields.append(f"{field} = ${param_count}")
-                params.append(value)
+        if db_pool is not None:
+            async with db_pool.acquire() as connection:
+                # Check if task exists and belongs to user
+                existing_task = await connection.fetchrow(
+                    "SELECT * FROM tasks WHERE id = $1 AND user_id = $2",
+                    uuid.UUID(task_id), uuid.UUID(current_user['id'])
+                )
+                
+                if not existing_task:
+                    raise HTTPException(status_code=404, detail="Task not found")
+                
+                # Build dynamic update query based on provided fields
+                update_fields = []
+                params = []
+                param_count = 0
+                
+                # Map fields properly
+                for field, value in task_data.items():
+                    if value is not None and field not in ['id']:
+                        param_count += 1
+                        if field == 'due_at':
+                            update_fields.append(f"due_date = ${param_count}")
+                        else:
+                            update_fields.append(f"{field} = ${param_count}")
+                        params.append(value)
+                
+                if update_fields:
+                    # Add updated_at timestamp
+                    param_count += 1
+                    update_fields.append(f"updated_at = ${param_count}")
+                    params.append(datetime.now(timezone.utc))
+                    
+                    # Add WHERE conditions
+                    param_count += 1
+                    params.append(uuid.UUID(task_id))
+                    param_count += 1
+                    params.append(uuid.UUID(current_user['id']))
+                    
+                    query = f"""
+                    UPDATE tasks 
+                    SET {', '.join(update_fields)}
+                    WHERE id = ${param_count-1} AND user_id = ${param_count}
+                    RETURNING *
+                    """
+                    
+                    result = await connection.fetchrow(query, *params)
+                    return TaskResponse(**dict(result))
+        else:
+            # Memory storage update
+            if task_id not in memory_storage['tasks']:
+                raise HTTPException(status_code=404, detail="Task not found")
+            
+            task = memory_storage['tasks'][task_id]
+            if task['user_id'] != current_user['id']:
+                raise HTTPException(status_code=404, detail="Task not found")
+            
+            # Update fields
+            now = datetime.now(timezone.utc)
+            for field, value in task_data.items():
+                if field == 'due_at' and value:
+                    task['due_date'] = datetime.fromisoformat(value) if isinstance(value, str) else value
+                elif field in task and value is not None:
+                    task[field] = value
+            
+            task['updated_at'] = now
+            
+            logger.info(f"✅ Task {task_id} updated in memory")
+            
+            # Return properly formatted response
+            return {
+                "id": task_id,
+                "title": task['title'],
+                "description": task['description'],
+                "status": task['status'],
+                "priority": task['priority'],
+                "urgency_score": task['urgency_score'],
+                "importance_score": task['importance_score'],
+                "due_at": task['due_date'].isoformat() if task['due_date'] else None,
+                "due_date": task['due_date'].isoformat() if task['due_date'] else None,
+                "all_day": task['all_day'],
+                "reminder_date": None,
+                "completed_at": task['completed_at'].isoformat() if task['completed_at'] else None,
+                "estimated_duration": task['estimated_duration'],
+                "actual_duration": 0,
+                "assignee": task['assignee'],
+                "project_id": task['project_id'],
+                "parent_task_id": task['parent_task_id'],
+                "tags": task['tags'],
+                "category": task['category'],
+                "location": task['location'],
+                "energy_level": task['energy_level'],
+                "energy": task['energy'],
+                "context_tags": task['context_tags'],
+                "recurrence_rule": task['recurrence_rule'],
+                "ai_generated": task['ai_generated'],
+                "created_at": task['created_at'].isoformat(),
+                "updated_at": task['updated_at'].isoformat(),
+                "createdAt": task['created_at'].isoformat(),
+                "updatedAt": task['updated_at'].isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to update task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
         
         # Handle completion timestamp for status changes
         if task_data.status is not None:
@@ -3496,6 +3940,35 @@ async def update_task_partial(task_id: str, task_data: TaskUpdate, current_user:
 @app.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
     """Delete a task"""
+    if db_pool is None:
+        # 메모리 저장소에서 삭제
+        user_id = current_user['id']
+        
+        # memory_storage['tasks']에서 삭제
+        if task_id in memory_storage['tasks']:
+            del memory_storage['tasks'][task_id]
+            
+        # memory_storage['user_tasks']에서도 삭제
+        if 'user_tasks' in memory_storage and user_id in memory_storage['user_tasks']:
+            tasks = memory_storage['user_tasks'][user_id]
+            original_count = len(tasks)
+            memory_storage['user_tasks'][user_id] = [t for t in tasks if t.get('id') != task_id]
+            
+            if len(memory_storage['user_tasks'][user_id]) == original_count:
+                raise HTTPException(status_code=404, detail="Task not found")
+            
+            logger.info(f"🗑️ Task {task_id} deleted from memory for user {user_id}")
+            
+            # Send real-time update
+            await manager.send_personal_message({
+                "type": "task_deleted",
+                "data": {"id": task_id}
+            }, user_id)
+            
+            return {"message": "Task deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Task not found")
+    
     async with db_pool.acquire() as connection:
         result = await connection.execute(
             "DELETE FROM tasks WHERE id = $1 AND user_id = $2",
@@ -3532,23 +4005,49 @@ async def get_calendar_events(
         start_date = datetime.fromisoformat(start.replace('Z', '+00:00')) if start else None
         end_date = datetime.fromisoformat(end.replace('Z', '+00:00')) if end else None
         
-        # 사용자의 이벤트들 필터링
-        for event_id, event in memory_storage['events'].items():
-            if event['user_id'] == user_id:
+        logger.info(f"📅 Getting calendar events from {start_date} to {end_date} for user {user_id}")
+        
+        # memory_storage의 user_events에서 가져오기
+        if 'user_events' in memory_storage and user_id in memory_storage['user_events']:
+            for event in memory_storage['user_events'][user_id]:
                 # 날짜 범위 필터링
-                if start_date and event.get('start_time') and event['start_time'] < start_date:
+                event_start = event.get('start') or event.get('start_time')
+                if start_date and event_start and event_start < start_date:
                     continue
-                if end_date and event.get('start_time') and event['start_time'] > end_date:
+                if end_date and event_start and event_start > end_date:
                     continue
                 # 이벤트 타입 필터링
                 if event_type and event.get('event_type') != event_type:
                     continue
                 
-                user_events.append(event)
+                # 응답 형식에 맞게 변환
+                formatted_event = {
+                    "id": event.get('id'),
+                    "title": event.get('title', ''),
+                    "description": event.get('description', ''),
+                    "start": event_start,
+                    "end": event.get('end') or event.get('end_time'),
+                    "all_day": event.get('all_day', False),
+                    "timezone": event.get('timezone', 'UTC'),
+                    "color": event.get('color', '#4285f4'),
+                    "location": event.get('location'),
+                    "meeting_url": event.get('meeting_url'),
+                    "event_type": event.get('event_type', 'event'),
+                    "recurrence_rule": event.get('recurrence_rule'),
+                    "reminder_minutes": event.get('reminder_minutes', []),
+                    "attendees": event.get('attendees', {}),
+                    "status": event.get('status', 'confirmed'),
+                    "visibility": event.get('visibility', 'private'),
+                    "ai_generated": event.get('ai_generated', False),
+                    "createdAt": event.get('created_at') or datetime.now(timezone.utc),
+                    "updatedAt": event.get('updated_at') or datetime.now(timezone.utc)
+                }
+                user_events.append(formatted_event)
         
         # 시작 시간순 정렬
-        user_events.sort(key=lambda x: x.get('start_time', datetime.utcnow()))
+        user_events.sort(key=lambda x: x.get('start', datetime.now(timezone.utc)))
         
+        logger.info(f"📅 Returning {len(user_events)} events for user {user_id}")
         return user_events
         
         if end:
@@ -3622,7 +4121,13 @@ async def create_calendar_event(event_data: CalendarEventCreate, current_user: d
             "updated_at": now
         }
         
-        memory_storage['events'][event_id] = new_event
+        # memory_storage의 user_events에 추가
+        if 'user_events' not in memory_storage:
+            memory_storage['user_events'] = {}
+        if current_user['id'] not in memory_storage['user_events']:
+            memory_storage['user_events'][current_user['id']] = []
+        
+        memory_storage['user_events'][current_user['id']].append(new_event)
         
         # 실시간 업데이트 전송
         await manager.send_personal_message({
@@ -3630,7 +4135,7 @@ async def create_calendar_event(event_data: CalendarEventCreate, current_user: d
             "data": {"id": event_id, "title": event_data.title}
         }, current_user['id'])
         
-        return {
+        created_event_response = {
             "id": event_id,
             "title": new_event['title'],
             "description": new_event['description'],
@@ -3651,6 +4156,70 @@ async def create_calendar_event(event_data: CalendarEventCreate, current_user: d
             "createdAt": new_event['created_at'],
             "updatedAt": new_event['updated_at']
         }
+        
+        # 캘린더 이벤트로부터 태스크 자동 생성 (event_type이 'task'가 아닌 경우에만, 중복 체크)
+        if new_event['event_type'] != 'task':
+            try:
+                # 기존 태스크 중복 체크
+                user_tasks = memory_storage.get('user_tasks', {}).get(current_user['id'], [])
+                task_title = f"📅 {new_event['title']}"
+                existing_task = None
+                for task in user_tasks:
+                    if (task.get('title') == task_title and 
+                        task.get('category') == 'calendar' and
+                        task.get('event_id') == event_id):
+                        existing_task = task
+                        break
+                
+                if not existing_task:
+                    task_id = str(uuid.uuid4())
+                    
+                    task_data = {
+                        "id": task_id,
+                        "user_id": current_user['id'],
+                        "title": task_title,
+                        "description": new_event['description'],
+                        "status": "pending",
+                        "priority": "medium",
+                        "urgency_score": 5,
+                        "importance_score": 5,
+                        "due_date": new_event['start_time'],
+                        "all_day": new_event['all_day'],
+                        "reminder_date": None,
+                        "estimated_duration": None,
+                        "assignee": None,
+                        "project_id": None,
+                        "parent_task_id": None,
+                        "tags": [],
+                        "category": "calendar",
+                        "location": new_event['location'],
+                        "attendees": list(new_event.get('attendees', {}).keys()) if isinstance(new_event.get('attendees'), dict) else [],
+                        "energy_level": "medium",
+                        "energy": 5,
+                        "context_tags": [],
+                        "recurrence_rule": new_event['recurrence_rule'],
+                        "ai_generated": False,
+                        "created_at": now.isoformat(),
+                        "updated_at": now.isoformat(),
+                        "completed_at": None,
+                        "event_id": event_id  # 이벤트와 연결
+                    }
+                    
+                    # memory_storage의 user_tasks에 추가
+                    if 'user_tasks' not in memory_storage:
+                        memory_storage['user_tasks'] = {}
+                    if current_user['id'] not in memory_storage['user_tasks']:
+                        memory_storage['user_tasks'][current_user['id']] = []
+                    
+                    memory_storage['user_tasks'][current_user['id']].append(task_data)
+                    logger.info(f"📋 Task created for calendar event {event_id}")
+                else:
+                    logger.info(f"📋 Task already exists for calendar event {event_id}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to create task for calendar event: {e}")
+        
+        return created_event_response
     
     async with db_pool.acquire() as connection:
         event_id = await connection.fetchval(
@@ -3754,7 +4323,9 @@ async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_
 async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_user)):
     """Advanced AI chat with context awareness"""
     try:
-        logger.info(f"🤖 AI Chat request from user {current_user['id']}: {request.message[:100]}...")
+        # Use message field if provided, otherwise use prompt
+        user_message = request.message or request.prompt
+        logger.info(f"🤖 AI Chat request from user {current_user['id']}: {user_message[:100]}...")
         
         if OPENAI_API_KEY:
             # Try OpenAI if key is available
@@ -3784,7 +4355,7 @@ async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_u
                     model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": system_message},
-                        {"role": "user", "content": request.message}
+                        {"role": "user", "content": user_message}
                     ],
                     max_tokens=1000,
                     temperature=0.7
