@@ -4633,7 +4633,89 @@ async def create_event_alias(
     current_user: dict = Depends(get_current_user)
 ):
     """Create a new calendar event - alias for /api/calendar"""
-    return await create_calendar_event(event_data, current_user)
+    try:
+        # Convert dict to CalendarEventCreate
+        from datetime import datetime
+        
+        # Parse datetime strings
+        start_time = event_data.get('start')
+        end_time = event_data.get('end')
+        
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        
+        # 인메모리 저장소에 이벤트 생성
+        event_id = str(get_next_id('event'))
+        now = datetime.utcnow()
+        
+        new_event = {
+            "id": event_id,
+            "user_id": current_user['id'],
+            "title": event_data.get('title', ''),
+            "description": event_data.get('description', ''),
+            "start_time": start_time,
+            "end_time": end_time,
+            "all_day": event_data.get('all_day', False),
+            "timezone": event_data.get('timezone', 'UTC'),
+            "color": event_data.get('color', '#4285f4'),
+            "location": event_data.get('location'),
+            "meeting_url": event_data.get('meeting_url'),
+            "event_type": event_data.get('event_type', 'event'),
+            "recurrence_rule": event_data.get('recurrence_rule'),
+            "reminder_minutes": event_data.get('reminder_minutes', []),
+            "attendees": event_data.get('attendees', {}),
+            "status": 'confirmed',
+            "visibility": event_data.get('visibility', 'private'),
+            "ai_generated": False,
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        # Store in memory
+        if 'events' not in memory_storage:
+            memory_storage['events'] = {}
+        memory_storage['events'][event_id] = new_event
+        
+        # Store in user events
+        if 'user_events' not in memory_storage:
+            memory_storage['user_events'] = {}
+        if current_user['id'] not in memory_storage['user_events']:
+            memory_storage['user_events'][current_user['id']] = []
+        
+        memory_storage['user_events'][current_user['id']].append(new_event)
+        
+        logger.info(f"✅ Calendar event created in memory: {event_id}")
+        
+        # Send real-time update
+        await manager.send_personal_message({
+            "type": "event_created",
+            "data": new_event
+        }, current_user['id'])
+        
+        return {
+            "id": event_id,
+            "title": new_event["title"],
+            "description": new_event["description"],
+            "start": new_event["start_time"].isoformat(),
+            "end": new_event["end_time"].isoformat(),
+            "all_day": new_event["all_day"],
+            "timezone": new_event["timezone"],
+            "color": new_event["color"],
+            "location": new_event["location"],
+            "meeting_url": new_event["meeting_url"],
+            "event_type": new_event["event_type"],
+            "status": new_event["status"],
+            "visibility": new_event["visibility"],
+            "user_id": new_event["user_id"],
+            "created_at": new_event["created_at"].isoformat(),
+            "updated_at": new_event["updated_at"].isoformat()
+        }
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to create calendar event via alias: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
 
 
 @app.delete("/api/tasks/{task_id}")
@@ -4788,183 +4870,6 @@ async def get_calendar_events(
             }
             for event in events
         ]
-
-@app.post("/api/events", response_model=CalendarEventResponse)
-async def create_calendar_event(event_data: CalendarEventCreate, current_user: dict = Depends(get_current_user)):
-    """Create a new calendar event"""
-    if db_pool is None:
-        # 인메모리 저장소에 이벤트 생성
-        event_id = str(get_next_id('event'))
-        now = datetime.utcnow()
-        
-        new_event = {
-            "id": event_id,
-            "user_id": current_user['id'],
-            "title": event_data.title,
-            "description": getattr(event_data, 'description', ''),
-            "start_time": event_data.start,
-            "end_time": event_data.end,
-            "all_day": getattr(event_data, 'all_day', False),
-            "timezone": getattr(event_data, 'timezone', 'UTC'),
-            "color": getattr(event_data, 'color', '#4285f4'),
-            "location": getattr(event_data, 'location', None),
-            "meeting_url": getattr(event_data, 'meeting_url', None),
-            "event_type": getattr(event_data, 'event_type', 'event'),
-            "recurrence_rule": getattr(event_data, 'recurrence_rule', None),
-            "reminder_minutes": getattr(event_data, 'reminder_minutes', []),
-            "attendees": getattr(event_data, 'attendees', {}),
-            "status": 'confirmed',
-            "visibility": getattr(event_data, 'visibility', 'private'),
-            "ai_generated": False,
-            "created_at": now,
-            "updated_at": now
-        }
-        
-        # memory_storage의 user_events에 추가
-        if 'user_events' not in memory_storage:
-            memory_storage['user_events'] = {}
-        if current_user['id'] not in memory_storage['user_events']:
-            memory_storage['user_events'][current_user['id']] = []
-        
-        memory_storage['user_events'][current_user['id']].append(new_event)
-        
-        # 실시간 업데이트 전송
-        await manager.send_personal_message({
-            "type": "event_created",
-            "data": {"id": event_id, "title": event_data.title}
-        }, current_user['id'])
-        
-        created_event_response = {
-            "id": event_id,
-            "title": new_event['title'],
-            "description": new_event['description'],
-            "start": new_event['start_time'],
-            "end": new_event['end_time'],
-            "all_day": new_event['all_day'],
-            "timezone": new_event['timezone'],
-            "color": new_event['color'],
-            "location": new_event['location'],
-            "meeting_url": new_event['meeting_url'],
-            "event_type": new_event['event_type'],
-            "recurrence_rule": new_event['recurrence_rule'],
-            "reminder_minutes": new_event['reminder_minutes'],
-            "attendees": new_event['attendees'],
-            "status": new_event['status'],
-            "visibility": new_event['visibility'],
-            "ai_generated": new_event['ai_generated'],
-            "createdAt": new_event['created_at'],
-            "updatedAt": new_event['updated_at']
-        }
-        
-        # 캘린더 이벤트로부터 태스크 자동 생성 (event_type이 'task'가 아닌 경우에만, 중복 체크)
-        if new_event['event_type'] != 'task':
-            try:
-                # 기존 태스크 중복 체크
-                user_tasks = memory_storage.get('user_tasks', {}).get(current_user['id'], [])
-                task_title = f"📅 {new_event['title']}"
-                existing_task = None
-                for task in user_tasks:
-                    if (task.get('title') == task_title and 
-                        task.get('category') == 'calendar' and
-                        task.get('event_id') == event_id):
-                        existing_task = task
-                        break
-                
-                if not existing_task:
-                    task_id = str(uuid.uuid4())
-                    
-                    task_data = {
-                        "id": task_id,
-                        "user_id": current_user['id'],
-                        "title": task_title,
-                        "description": new_event['description'],
-                        "status": "pending",
-                        "priority": "medium",
-                        "urgency_score": 5,
-                        "importance_score": 5,
-                        "due_date": new_event['start_time'],
-                        "all_day": new_event['all_day'],
-                        "reminder_date": None,
-                        "estimated_duration": None,
-                        "assignee": None,
-                        "project_id": None,
-                        "parent_task_id": None,
-                        "tags": [],
-                        "category": "calendar",
-                        "location": new_event['location'],
-                        "attendees": list(new_event.get('attendees', {}).keys()) if isinstance(new_event.get('attendees'), dict) else [],
-                        "energy_level": "medium",
-                        "energy": 5,
-                        "context_tags": [],
-                        "recurrence_rule": new_event['recurrence_rule'],
-                        "ai_generated": False,
-                        "created_at": now.isoformat(),
-                        "updated_at": now.isoformat(),
-                        "completed_at": None,
-                        "event_id": event_id  # 이벤트와 연결
-                    }
-                    
-                    # memory_storage의 user_tasks에 추가
-                    if 'user_tasks' not in memory_storage:
-                        memory_storage['user_tasks'] = {}
-                    if current_user['id'] not in memory_storage['user_tasks']:
-                        memory_storage['user_tasks'][current_user['id']] = []
-                    
-                    memory_storage['user_tasks'][current_user['id']].append(task_data)
-                    logger.info(f"📋 Task created for calendar event {event_id}")
-                else:
-                    logger.info(f"📋 Task already exists for calendar event {event_id}")
-                
-            except Exception as e:
-                logger.warning(f"Failed to create task for calendar event: {e}")
-        
-        return created_event_response
-    
-    async with db_pool.acquire() as connection:
-        event_id = await connection.fetchval(
-            """INSERT INTO calendar_events (
-                user_id, title, description, start_time, end_time, all_day, timezone,
-                color, location, meeting_url, event_type, recurrence_rule, reminder_minutes,
-                attendees, visibility
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
-            RETURNING id""",
-            current_user['id'], event_data.title, event_data.description,
-            event_data.start, event_data.end, event_data.all_day, event_data.timezone,
-            event_data.color, event_data.location, event_data.meeting_url,
-            event_data.event_type, event_data.recurrence_rule, event_data.reminder_minutes,
-            event_data.attendees, event_data.visibility
-        )
-        
-        # Fetch the created event
-        event = await connection.fetchrow("SELECT * FROM calendar_events WHERE id = $1", event_id)
-        
-        # Send real-time update
-        await manager.send_personal_message({
-            "type": "event_created",
-            "data": {"id": str(event_id), "title": event_data.title}
-        }, current_user['id'])
-        
-        return {
-            "id": str(event['id']),
-            "title": event['title'],
-            "description": event['description'],
-            "start": event['start_time'],
-            "end": event['end_time'],
-            "all_day": event['all_day'],
-            "timezone": event['timezone'],
-            "color": event['color'],
-            "location": event['location'],
-            "meeting_url": event['meeting_url'],
-            "event_type": event['event_type'],
-            "recurrence_rule": event['recurrence_rule'],
-            "reminder_minutes": event['reminder_minutes'] or [],
-            "attendees": event['attendees'] or {},
-            "status": event['status'],
-            "visibility": event['visibility'],
-            "ai_generated": event['ai_generated'],
-            "createdAt": event['created_at'],
-            "updatedAt": event['updated_at']
-        }
 
 @app.put("/api/events/{event_id}")
 async def update_calendar_event(event_id: str, event_data: CalendarEventCreate, current_user: dict = Depends(get_current_user)):
