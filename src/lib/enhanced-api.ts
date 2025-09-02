@@ -329,15 +329,23 @@ export const enhancedAPI = {
         end: data.end_at || data.start_at || '',
         all_day: false, // Default to not all day for events
         timezone: 'UTC', // Default timezone
-        color: null,
+        color: undefined,
         location: data.location || '',
-        meeting_url: null,
+        meeting_url: undefined,
         event_type: 'event', // Default event type
-        recurrence_rule: null,
+        recurrence_rule: undefined,
         reminder_minutes: [],
         attendees: {},
         visibility: 'private' // Default visibility
       };
+      
+      // Ensure start and end times are provided
+      if (!eventCreateData.start) {
+        throw new Error('Event start time is required');
+      }
+      if (!eventCreateData.end) {
+        eventCreateData.end = eventCreateData.start;
+      }
       
       console.log('Enhanced API: Sending formatted event data:', eventCreateData);
       

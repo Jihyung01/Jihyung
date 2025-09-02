@@ -771,6 +771,44 @@ class CollaborationMessage(BaseModel):
     message_type: str = "chat"
     reply_to: Optional[str] = None
 
+# Utility functions for ID handling
+def parse_id_to_uuid(id_value: Union[str, int, uuid.UUID]) -> uuid.UUID:
+    """Convert various ID formats to UUID"""
+    if isinstance(id_value, uuid.UUID):
+        return id_value
+    elif isinstance(id_value, int):
+        # Convert integer to UUID by padding with zeros
+        return uuid.UUID(f"{id_value:08d}-0000-0000-0000-000000000000")
+    elif isinstance(id_value, str):
+        # Try to parse as UUID first
+        try:
+            return uuid.UUID(id_value)
+        except ValueError:
+            # If not a valid UUID, try to parse as int and convert
+            try:
+                int_id = int(id_value)
+                return uuid.UUID(f"{int_id:08d}-0000-0000-0000-000000000000")
+            except ValueError:
+                # Generate a deterministic UUID from the string
+                import hashlib
+                hash_bytes = hashlib.md5(id_value.encode()).digest()
+                return uuid.UUID(bytes=hash_bytes)
+    else:
+        raise ValueError(f"Cannot convert {type(id_value)} to UUID")
+
+def format_id_for_response(id_value: Union[str, int, uuid.UUID]) -> str:
+    """Format ID for API response - return as string"""
+    if isinstance(id_value, (int, str)):
+        return str(id_value)
+    elif isinstance(id_value, uuid.UUID):
+        # Check if it's a converted integer ID (starts with 8 digits followed by zeros)
+        str_uuid = str(id_value)
+        if str_uuid.endswith("-0000-0000-0000-000000000000"):
+            # Extract the original integer ID
+            return str(int(str_uuid[:8]))
+        return str_uuid
+    return str(id_value)
+
 # Authentication utilities
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -2597,6 +2635,29 @@ async def create_calendar_event(
                 "type": "event"
             }
             
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creating calendar event: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
+
+
+@app.post("/api/events")
+async def create_event_alias(
+    event_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new calendar event - alias for /api/calendar"""
+    return await create_calendar_event(event_data, current_user)
+                "attendees": event['attendees'],
+                "user_id": current_user['id'],
+                "created_at": event['created_at'].isoformat(),
+                "updated_at": event['updated_at'].isoformat(),
+                "type": "event"
+            }
+            
     except Exception as e:
         logger.error(f"❌ Failed to create calendar event: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
@@ -3873,16 +3934,31 @@ async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = 
 
 @app.patch("/api/tasks/{task_id}")
 async def update_task_partial(task_id: str, task_data: dict, current_user: dict = Depends(get_current_user)):
-    """Partially update task with flexible field mapping"""
+    """Partially update task with flexible field mapping and ID handling"""
     try:
         logger.info(f"🔄 Updating task {task_id} with data: {task_data}")
+        
+        # Handle both integer and UUID task IDs
+        try:
+            # First try to use the ID as-is for memory storage
+            memory_task_id = task_id
+            
+            # For database, convert to UUID format
+            if db_pool is not None:
+                db_task_id = parse_id_to_uuid(task_id)
+            else:
+                db_task_id = None
+                
+        except Exception as e:
+            logger.error(f"Error parsing task ID {task_id}: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid task ID format: {task_id}")
         
         if db_pool is not None:
             async with db_pool.acquire() as connection:
                 # Check if task exists and belongs to user
                 existing_task = await connection.fetchrow(
                     "SELECT * FROM tasks WHERE id = $1 AND user_id = $2",
-                    uuid.UUID(task_id), uuid.UUID(current_user['id'])
+                    db_task_id, uuid.UUID(current_user['id'])
                 )
                 
                 if not existing_task:
@@ -3893,25 +3969,54 @@ async def update_task_partial(task_id: str, task_data: dict, current_user: dict 
                 params = []
                 param_count = 0
                 
-                # Map fields properly
+                # Map fields properly with proper type conversion
                 for field, value in task_data.items():
                     if value is not None and field not in ['id']:
                         param_count += 1
                         if field == 'due_at':
+                            # Handle due_at field mapping to due_date
                             update_fields.append(f"due_date = ${param_count}")
+                            if isinstance(value, str):
+                                try:
+                                    # Parse datetime and make timezone-naive for PostgreSQL
+                                    dt_value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                                    params.append(dt_value.replace(tzinfo=None))
+                                except:
+                                    params.append(None)
+                            else:
+                                params.append(value)
+                        elif field == 'completed_at' and value:
+                            # Handle completed_at timestamp
+                            update_fields.append(f"completed_at = ${param_count}")
+                            if isinstance(value, str):
+                                try:
+                                    dt_value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                                    params.append(dt_value.replace(tzinfo=None))
+                                except:
+                                    params.append(datetime.now().replace(tzinfo=None))
+                            else:
+                                params.append(datetime.now().replace(tzinfo=None))
+                        elif field == 'status':
+                            update_fields.append(f"status = ${param_count}")
+                            params.append(value)
+                            # If status is completed, set completed_at
+                            if value == 'completed':
+                                param_count += 1
+                                update_fields.append(f"completed_at = ${param_count}")
+                                params.append(datetime.now().replace(tzinfo=None))
                         else:
                             update_fields.append(f"{field} = ${param_count}")
-                        params.append(value)
+                            params.append(value)
                 
                 if update_fields:
                     # Add updated_at timestamp
                     param_count += 1
                     update_fields.append(f"updated_at = ${param_count}")
-                    params.append(datetime.now(timezone.utc))
+                    params.append(datetime.now().replace(tzinfo=None))
                     
                     # Add WHERE conditions
                     param_count += 1
-                    params.append(uuid.UUID(task_id))
+                    params.append(db_task_id)
                     param_count += 1
                     params.append(uuid.UUID(current_user['id']))
                     
@@ -3922,56 +4027,135 @@ async def update_task_partial(task_id: str, task_data: dict, current_user: dict 
                     RETURNING *
                     """
                     
+                    logger.info(f"Executing update query: {query}")
+                    logger.info(f"With params: {params}")
+                    
                     result = await connection.fetchrow(query, *params)
-                    return TaskResponse(**dict(result))
+                    
+                    if result:
+                        # Format response with proper ID handling
+                        return {
+                            "id": format_id_for_response(result['id']),
+                            "title": result['title'],
+                            "description": result['description'],
+                            "status": result['status'],
+                            "priority": result['priority'],
+                            "urgency_score": result['urgency_score'],
+                            "importance_score": result['importance_score'],
+                            "due_at": result['due_date'].isoformat() if result['due_date'] else None,
+                            "due_date": result['due_date'].isoformat() if result['due_date'] else None,
+                            "all_day": result.get('all_day', True),
+                            "reminder_date": result['reminder_date'].isoformat() if result['reminder_date'] else None,
+                            "completed_at": result['completed_at'].isoformat() if result['completed_at'] else None,
+                            "estimated_duration": result['estimated_duration'],
+                            "actual_duration": result.get('actual_duration', 0),
+                            "assignee": result['assignee'],
+                            "project_id": format_id_for_response(result['project_id']) if result['project_id'] else None,
+                            "parent_task_id": format_id_for_response(result['parent_task_id']) if result['parent_task_id'] else None,
+                            "tags": result['tags'] or [],
+                            "category": result['category'],
+                            "location": result['location'],
+                            "energy_level": result['energy_level'],
+                            "energy": result.get('energy', 5),
+                            "context_tags": result['context_tags'] or [],
+                            "recurrence_rule": result['recurrence_rule'],
+                            "ai_generated": result['ai_generated'],
+                            "created_at": result['created_at'],
+                            "updated_at": result['updated_at'],
+                            "createdAt": result['created_at'],
+                            "updatedAt": result['updated_at']
+                        }
+                    else:
+                        raise HTTPException(status_code=404, detail="Task not found after update")
         else:
             # Memory storage update
-            if task_id not in memory_storage['tasks']:
-                raise HTTPException(status_code=404, detail="Task not found")
+            user_id = current_user['id']
             
-            task = memory_storage['tasks'][task_id]
-            if task['user_id'] != current_user['id']:
+            # Find task in memory storage
+            task_found = False
+            task = None
+            
+            # Check in both tasks storage and user_tasks storage
+            if memory_task_id in memory_storage.get('tasks', {}):
+                task = memory_storage['tasks'][memory_task_id]
+                if task['user_id'] == user_id:
+                    task_found = True
+            
+            if not task_found and 'user_tasks' in memory_storage and user_id in memory_storage['user_tasks']:
+                for stored_task in memory_storage['user_tasks'][user_id]:
+                    if str(stored_task.get('id')) == memory_task_id:
+                        task = stored_task
+                        task_found = True
+                        break
+            
+            if not task_found:
                 raise HTTPException(status_code=404, detail="Task not found")
             
             # Update fields
             now = datetime.now(timezone.utc)
             for field, value in task_data.items():
                 if field == 'due_at' and value:
-                    task['due_date'] = datetime.fromisoformat(value) if isinstance(value, str) else value
+                    task['due_date'] = datetime.fromisoformat(value.replace('Z', '+00:00')) if isinstance(value, str) else value
+                elif field == 'status' and value:
+                    task['status'] = value
+                    if value == 'completed':
+                        task['completed_at'] = now
                 elif field in task and value is not None:
                     task[field] = value
             
             task['updated_at'] = now
             
-            logger.info(f"✅ Task {task_id} updated in memory")
+            logger.info(f"✅ Task {memory_task_id} updated in memory")
+            
+            # Send real-time update
+            try:
+                await manager.send_personal_message({
+                    "type": "task_updated",
+                    "data": {"id": memory_task_id, "title": task['title'], "status": task['status']}
+                }, user_id)
+            except Exception as e:
+                logger.warning(f"Real-time notification failed: {e}")
             
             # Return properly formatted response
             return {
-                "id": task_id,
+                "id": memory_task_id,
                 "title": task['title'],
-                "description": task['description'],
+                "description": task.get('description', ''),
                 "status": task['status'],
-                "priority": task['priority'],
-                "urgency_score": task['urgency_score'],
-                "importance_score": task['importance_score'],
-                "due_at": task['due_date'].isoformat() if task['due_date'] else None,
-                "due_date": task['due_date'].isoformat() if task['due_date'] else None,
-                "all_day": task['all_day'],
-                "reminder_date": None,
-                "completed_at": task['completed_at'].isoformat() if task['completed_at'] else None,
-                "estimated_duration": task['estimated_duration'],
-                "actual_duration": 0,
-                "assignee": task['assignee'],
-                "project_id": task['project_id'],
-                "parent_task_id": task['parent_task_id'],
-                "tags": task['tags'],
-                "category": task['category'],
-                "location": task['location'],
-                "energy_level": task['energy_level'],
-                "energy": task['energy'],
-                "context_tags": task['context_tags'],
-                "recurrence_rule": task['recurrence_rule'],
-                "ai_generated": task['ai_generated'],
+                "priority": task.get('priority', 'medium'),
+                "urgency_score": task.get('urgency_score', 5),
+                "importance_score": task.get('importance_score', 5),
+                "due_at": task['due_date'].isoformat() if task.get('due_date') else None,
+                "due_date": task['due_date'].isoformat() if task.get('due_date') else None,
+                "all_day": task.get('all_day', True),
+                "reminder_date": task['reminder_date'].isoformat() if task.get('reminder_date') else None,
+                "completed_at": task['completed_at'].isoformat() if task.get('completed_at') else None,
+                "estimated_duration": task.get('estimated_duration'),
+                "actual_duration": task.get('actual_duration', 0),
+                "assignee": task.get('assignee'),
+                "project_id": task.get('project_id'),
+                "parent_task_id": task.get('parent_task_id'),
+                "tags": task.get('tags', []),
+                "category": task.get('category'),
+                "location": task.get('location'),
+                "energy_level": task.get('energy_level', 'medium'),
+                "energy": task.get('energy', 5),
+                "context_tags": task.get('context_tags', []),
+                "recurrence_rule": task.get('recurrence_rule'),
+                "ai_generated": task.get('ai_generated', False),
+                "created_at": task.get('created_at'),
+                "updated_at": task.get('updated_at'),
+                "createdAt": task.get('created_at'),
+                "updatedAt": task.get('updated_at')
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error updating task {task_id}: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
                 "created_at": task['created_at'].isoformat(),
                 "updated_at": task['updated_at'].isoformat(),
                 "createdAt": task['created_at'].isoformat(),
