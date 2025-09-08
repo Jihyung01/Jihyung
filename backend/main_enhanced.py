@@ -3662,7 +3662,7 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 "due_at": new_task["due_date"].isoformat() if new_task["due_date"] else None,
                 "due_date": new_task["due_date"].isoformat() if new_task["due_date"] else None,
                 "all_day": new_task["all_day"],
-                "reminder_date": new_task["reminder_date"],
+                "reminder_date": new_task["reminder_date"].isoformat() if new_task["reminder_date"] else None,
                 "completed_at": new_task["completed_at"],
                 "estimated_duration": new_task["estimated_duration"],
                 "actual_duration": None,
@@ -3676,10 +3676,10 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 "context_tags": new_task["context_tags"],
                 "recurrence_rule": new_task["recurrence_rule"],
                 "ai_generated": new_task["ai_generated"],
-                "created_at": now,  # Add created_at field
-                "updated_at": now,  # Add updated_at field
-                "createdAt": now,
-                "updatedAt": now
+                "created_at": now.isoformat(),  # Use proper datetime object
+                "updated_at": now.isoformat(),  # Use proper datetime object
+                "createdAt": now.isoformat(),
+                "updatedAt": now.isoformat()
             }
         
         async with db_pool.acquire() as connection:
@@ -3769,61 +3769,11 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 "updatedAt": task['updated_at'].isoformat() if task['updated_at'] else None
             }
             
-            # 캘린더 이벤트 자동 생성 (due_date가 있는 경우, 중복 체크)
-            if task['due_date']:
-                try:
-                    # 기존 이벤트 중복 체크
-                    user_events = memory_storage.get('user_events', {}).get(current_user['id'], [])
-                    task_title = f"📋 {task['title']}"
-                    existing_event = None
-                    for event in user_events:
-                        if (event.get('title') == task_title and 
-                            event.get('event_type') == 'task' and
-                            event.get('task_id') == str(task['id'])):
-                            existing_event = event
-                            break
-                    
-                    if not existing_event:
-                        event_start = task['due_date']
-                        event_end = event_start + timedelta(hours=1)  # 기본 1시간 이벤트
-                        
-                        calendar_event = {
-                            "id": str(uuid.uuid4()),
-                            "user_id": current_user['id'],
-                            "title": task_title,
-                            "description": task['description'] or '',
-                            "start": event_start,
-                            "end": event_end,
-                            "all_day": task['all_day'],
-                            "timezone": "UTC",
-                            "color": "#3B82F6",  # 파란색으로 태스크 이벤트 구분
-                            "location": task['location'],
-                            "meeting_url": None,
-                            "event_type": "task",
-                            "recurrence_rule": task['recurrence_rule'],
-                            "reminder_minutes": [15],
-                            "attendees": getattr(task_data, 'attendees', []),
-                            "status": "confirmed",
-                            "visibility": "private",
-                            "ai_generated": False,
-                            "created_at": now,
-                            "updated_at": now,
-                            "task_id": str(task['id'])  # 태스크와 연결
-                        }
-                        
-                        # 메모리에 캘린더 이벤트 저장
-                        if 'user_events' not in memory_storage:
-                            memory_storage['user_events'] = {}
-                        if current_user['id'] not in memory_storage['user_events']:
-                            memory_storage['user_events'][current_user['id']] = []
-                        
-                        memory_storage['user_events'][current_user['id']].append(calendar_event)
-                        logger.info(f"📅 Calendar event created for task {task_id}")
-                    else:
-                        logger.info(f"📅 Calendar event already exists for task {task_id}")
-                    
-                except Exception as e:
-                    logger.warning(f"Failed to create calendar event for task: {e}")
+            # 캘린더 이벤트 자동 생성 비활성화 (중복 방지)
+            # 사용자가 명시적으로 캘린더 이벤트를 원할 때만 생성하도록 변경
+            # if task['due_date'] and getattr(task_data, 'create_calendar_event', False):
+            #     # 캘린더 이벤트 생성 로직 (선택적으로만 실행)
+            #     pass
             
             return created_task_response
             
@@ -4661,24 +4611,36 @@ async def create_event_alias(
                     if dt_str.endswith('Z'):
                         dt_str = dt_str[:-1] + '+00:00'
                     
-                    # Handle various ISO formats
-                    if '+' in dt_str or dt_str.endswith('T'):
+                    # Handle YYYY-MM-DDTHH:MM:SS format (most common)
+                    if re.match(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$', dt_str):
+                        if len(dt_str) == 16:  # YYYY-MM-DDTHH:MM
+                            dt_str += ':00'  # Add seconds
                         return datetime.fromisoformat(dt_str)
                     
                     # Handle YYYY-MM-DD HH:MM format
                     if re.match(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}', dt_str):
-                        return datetime.strptime(dt_str, '%Y-%m-%d %H:%M')
+                        return datetime.strptime(dt_str[:16], '%Y-%m-%d %H:%M')
                     
-                    # Handle YYYY-MM-DDTHH:MM format
-                    if 'T' in dt_str:
-                        dt_str = dt_str.split('.')[0]  # Remove microseconds
+                    # Handle ISO format with timezone
+                    if '+' in dt_str or '-' in dt_str[-6:]:
                         return datetime.fromisoformat(dt_str)
+                    
+                    # Handle simple date formats
+                    if re.match(r'\d{4}-\d{2}-\d{2}$', dt_str):
+                        return datetime.strptime(dt_str, '%Y-%m-%d')
                     
                     # Fallback: try to parse as ISO format
                     return datetime.fromisoformat(dt_str)
                     
                 except Exception as e:
                     logger.error(f"❌ Failed to parse datetime '{dt_str}': {e}")
+                    # Try one more fallback
+                    try:
+                        # Try parsing as timestamp
+                        if dt_str.isdigit():
+                            return datetime.fromtimestamp(int(dt_str))
+                    except:
+                        pass
                     return None
             
             return None
@@ -4976,22 +4938,33 @@ async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_
 # ========== ADVANCED AI API ==========
 
 @app.post("/api/ai/chat")
-async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_user)):
+async def ai_chat(request: dict, current_user: dict = Depends(get_current_user)):
     """Advanced AI chat with context awareness"""
     try:
-        # Use message field if provided, otherwise use prompt
-        user_message = request.message or request.prompt
+        # Extract message from various possible fields
+        user_message = request.get('message') or request.get('prompt') or request.get('query', '')
+        
+        if not user_message:
+            return {
+                "response": "메시지를 입력해주세요.",
+                "usage": None,
+                "model": "error",
+                "error": "No message provided"
+            }
+            
         logger.info(f"🤖 AI Chat request from user {current_user['id']}: {user_message[:100]}...")
         
         if OPENAI_API_KEY:
             # Try OpenAI if key is available
             try:
+                import openai
                 client = openai.OpenAI(api_key=OPENAI_API_KEY)
                 
                 # Build context from user's data
                 context_parts = []
-                if request.context:
-                    context_parts.append(f"Context: {request.context}")
+                context = request.get('context')
+                if context:
+                    context_parts.append(f"Context: {context}")
                 
                 # Add recent user activity for better context
                 if db_pool:
@@ -5031,7 +5004,7 @@ async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_u
         # Mock AI responses for demo
         logger.info("🎭 Using mock AI chat response")
         
-        message_lower = request.message.lower()
+        message_lower = user_message.lower()
         
         # Smart responses based on keywords
         if any(word in message_lower for word in ['안녕', '헬로', '하이', 'hello', 'hi']):
@@ -5113,7 +5086,7 @@ async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_u
         
         else:
             # General helpful response
-            mock_response = f""""{request.message}"에 대해 말씀해주셨네요! 🤔
+            mock_response = f""""{user_message}"에 대해 말씀해주셨네요! 🤔
 
 죄송하지만 현재 AI 서비스가 제한적으로 운영되고 있습니다. 
 
@@ -5129,7 +5102,7 @@ async def ai_chat(request: AIRequest, current_user: dict = Depends(get_current_u
             "response": mock_response,
             "usage": {"total_tokens": len(mock_response)},
             "model": "mock-ai-assistant",
-            "context_used": bool(request.context),
+            "context_used": bool(request.get('context')),
             "note": "데모용 AI 응답입니다. 실제 OpenAI API 연결 시 더 정확한 답변이 제공됩니다."
         }
         
