@@ -116,15 +116,50 @@ export const CalendarPage: React.FC = () => {
 
   const createEvent = async () => {
     try {
+      // 입력 검증
+      if (!newEvent.title.trim()) {
+        alert('제목을 입력해주세요.');
+        return;
+      }
+      
+      if (!newEvent.start_at || !newEvent.end_at) {
+        alert('시작 시간과 종료 시간을 입력해주세요.');
+        return;
+      }
+
+      // 날짜/시간 형식 검증 및 변환
+      const startDate = new Date(newEvent.start_at);
+      const endDate = new Date(newEvent.end_at);
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        alert('올바른 날짜와 시간을 입력해주세요.');
+        return;
+      }
+
+      if (startDate >= endDate) {
+        alert('종료 시간은 시작 시간보다 늦어야 합니다.');
+        return;
+      }
+
       const eventData = {
-        title: newEvent.title,
-        description: newEvent.description || undefined,
-        start_at: newEvent.start_at,
-        end_at: newEvent.end_at,
-        location: newEvent.location || undefined,
-        attendees: newEvent.attendees.length > 0 ? newEvent.attendees : undefined
+        title: newEvent.title.trim(),
+        description: newEvent.description?.trim() || '',
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+        location: newEvent.location?.trim() || '',
+        attendees: newEvent.attendees.length > 0 ? newEvent.attendees : [],
+        all_day: false,
+        timezone: 'UTC',
+        color: '#4285f4',
+        event_type: 'event',
+        visibility: 'private'
       };
+
+      console.log('Creating event with data:', eventData);
+      
       await enhancedAPI.createCalendarEvent(eventData);
+      
+      // 폼 초기화
       setNewEvent({
         title: '',
         description: '',
@@ -134,10 +169,23 @@ export const CalendarPage: React.FC = () => {
         attendees: [],
         attendeeInput: ''
       });
+      
       setShowCreateDialog(false);
       await loadEvents();
+      
+      // 성공 알림
+      alert('일정이 성공적으로 생성되었습니다!');
+      
     } catch (error) {
       console.error('Failed to create event:', error);
+      
+      // 에러 상세 정보 표시
+      let errorMessage = '일정 생성 중 오류가 발생했습니다.';
+      if (error instanceof Error) {
+        errorMessage += ` (${error.message})`;
+      }
+      
+      alert(errorMessage);
     }
   };
 

@@ -3624,8 +3624,8 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 "context_tags": getattr(task_data, 'context_tags', []),
                 "recurrence_rule": getattr(task_data, 'recurrence_rule', None),
                 "ai_generated": False,
-                "created_at": now.isoformat(),
-                "updated_at": now.isoformat(),
+                "created_at": now,  # Store as datetime object
+                "updated_at": now,  # Store as datetime object
                 "completed_at": None
             }
             
@@ -3676,10 +3676,10 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 "context_tags": new_task["context_tags"],
                 "recurrence_rule": new_task["recurrence_rule"],
                 "ai_generated": new_task["ai_generated"],
-                "created_at": now.isoformat(),  # Use proper datetime object
-                "updated_at": now.isoformat(),  # Use proper datetime object
-                "createdAt": now.isoformat(),
-                "updatedAt": now.isoformat()
+                "created_at": now.isoformat(),  # Use current UTC time
+                "updated_at": now.isoformat(),  # Use current UTC time
+                "createdAt": now.isoformat(),   # Use current UTC time for frontend
+                "updatedAt": now.isoformat()    # Use current UTC time for frontend
             }
         
         async with db_pool.acquire() as connection:
@@ -3765,8 +3765,10 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
                 "context_tags": task['context_tags'] or [],
                 "recurrence_rule": task['recurrence_rule'],
                 "ai_generated": task['ai_generated'],
-                "createdAt": task['created_at'].isoformat() if task['created_at'] else None,
-                "updatedAt": task['updated_at'].isoformat() if task['updated_at'] else None
+                "created_at": task['created_at'].isoformat() if task['created_at'] else now.isoformat(),
+                "updated_at": task['updated_at'].isoformat() if task['updated_at'] else now.isoformat(),
+                "createdAt": task['created_at'].isoformat() if task['created_at'] else now.isoformat(),
+                "updatedAt": task['updated_at'].isoformat() if task['updated_at'] else now.isoformat()
             }
             
             # 캘린더 이벤트 자동 생성 비활성화 (중복 방지)
@@ -4582,105 +4584,159 @@ async def create_event_alias(
     event_data: dict,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create a new calendar event - alias for /api/calendar"""
+    """Create a new calendar event - fixed version with proper error handling"""
     try:
-        # Convert dict to CalendarEventCreate
-        from datetime import datetime, timezone
-        import re
-        
         logger.info(f"📅 Creating calendar event with data: {event_data}")
         
-        # Parse datetime strings with multiple format support
-        start_time = event_data.get('start')
-        end_time = event_data.get('end')
+        # Extract and validate required fields
+        title = event_data.get('title', '').strip()
+        if not title:
+            raise HTTPException(status_code=400, detail="제목은 필수입니다.")
         
-        def parse_datetime(dt_str):
-            """Parse various datetime formats"""
+        # Parse datetime strings with robust error handling
+        def parse_datetime_safe(dt_str, field_name="datetime"):
+            """Parse various datetime formats safely"""
             if not dt_str:
-                return None
+                raise HTTPException(status_code=400, detail=f"{field_name}이 필요합니다.")
             
             if isinstance(dt_str, datetime):
                 return dt_str
                 
             if isinstance(dt_str, str):
                 try:
-                    # Remove any timezone info and handle various formats
-                    dt_str = dt_str.strip()
-                    
-                    # Handle Z suffix
+                    # Handle ISO 8601 format
                     if dt_str.endswith('Z'):
                         dt_str = dt_str[:-1] + '+00:00'
                     
-                    # Handle YYYY-MM-DDTHH:MM:SS format (most common)
-                    if re.match(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$', dt_str):
-                        if len(dt_str) == 16:  # YYYY-MM-DDTHH:MM
-                            dt_str += ':00'  # Add seconds
-                        return datetime.fromisoformat(dt_str)
+                    # Parse as ISO format
+                    parsed_dt = datetime.fromisoformat(dt_str)
                     
-                    # Handle YYYY-MM-DD HH:MM format
-                    if re.match(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}', dt_str):
-                        return datetime.strptime(dt_str[:16], '%Y-%m-%d %H:%M')
+                    # Ensure timezone awareness
+                    if parsed_dt.tzinfo is None:
+                        parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
                     
-                    # Handle ISO format with timezone
-                    if '+' in dt_str or '-' in dt_str[-6:]:
-                        return datetime.fromisoformat(dt_str)
+                    return parsed_dt
                     
-                    # Handle simple date formats
-                    if re.match(r'\d{4}-\d{2}-\d{2}$', dt_str):
-                        return datetime.strptime(dt_str, '%Y-%m-%d')
-                    
-                    # Fallback: try to parse as ISO format
-                    return datetime.fromisoformat(dt_str)
-                    
-                except Exception as e:
-                    logger.error(f"❌ Failed to parse datetime '{dt_str}': {e}")
-                    # Try one more fallback
-                    try:
-                        # Try parsing as timestamp
-                        if dt_str.isdigit():
-                            return datetime.fromtimestamp(int(dt_str))
-                    except:
-                        pass
-                    return None
+                except ValueError as e:
+                    logger.error(f"❌ Failed to parse {field_name} '{dt_str}': {e}")
+                    raise HTTPException(status_code=400, detail=f"잘못된 {field_name} 형식입니다. (ISO 8601 형식 필요)")
             
-            return None
+            raise HTTPException(status_code=400, detail=f"잘못된 {field_name} 형식입니다.")
         
-        start_time = parse_datetime(start_time)
-        end_time = parse_datetime(end_time)
+        # Parse start and end times
+        start_time = parse_datetime_safe(event_data.get('start'), "시작 시간")
+        end_time = parse_datetime_safe(event_data.get('end'), "종료 시간")
         
-        # Validation
-        if not start_time:
-            raise HTTPException(status_code=400, detail="start_time is required and must be a valid datetime")
-        
-        if not end_time:
-            raise HTTPException(status_code=400, detail="end_time is required and must be a valid datetime")
-        
+        # Validate time logic
         if start_time >= end_time:
-            raise HTTPException(status_code=400, detail="start_time must be before end_time")
+            raise HTTPException(status_code=400, detail="종료 시간은 시작 시간보다 늦어야 합니다.")
         
         logger.info(f"✅ Parsed times - Start: {start_time}, End: {end_time}")
         
-        # 인메모리 저장소에 이벤트 생성
-        event_id = str(get_next_id('event'))
-        now = datetime.utcnow()
+        # Generate event ID
+        event_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
         
+        # Try database storage first
+        if db_pool:
+            try:
+                async with db_pool.acquire() as connection:
+                    # Ensure user exists
+                    user_uuid = uuid.UUID(current_user['id'])
+                    
+                    # Check/create user
+                    user_exists = await connection.fetchrow(
+                        "SELECT id FROM users WHERE id = $1", user_uuid
+                    )
+                    
+                    if not user_exists:
+                        await connection.execute("""
+                            INSERT INTO users (id, email, name, created_at, updated_at)
+                            VALUES ($1, $2, $3, $4, $5)
+                        """,
+                            user_uuid,
+                            current_user.get('email', 'demo@example.com'),
+                            current_user.get('name', 'Demo User'),
+                            now.replace(tzinfo=None),
+                            now.replace(tzinfo=None)
+                        )
+                        logger.info(f"✅ User {current_user['id']} created")
+                    
+                    # Insert calendar event
+                    await connection.execute("""
+                        INSERT INTO calendar_events (
+                            id, user_id, title, description, start_time, end_time, 
+                            all_day, timezone, color, location, meeting_url, event_type,
+                            recurrence_rule, reminder_minutes, attendees, status, visibility,
+                            ai_generated, created_at, updated_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+                    """,
+                        uuid.UUID(event_id), user_uuid,
+                        title,
+                        event_data.get('description', ''),
+                        start_time.replace(tzinfo=None),
+                        end_time.replace(tzinfo=None),
+                        event_data.get('all_day', False),
+                        event_data.get('timezone', 'UTC'),
+                        event_data.get('color', '#4285f4'),
+                        event_data.get('location', ''),
+                        event_data.get('meeting_url', ''),
+                        event_data.get('event_type', 'event'),
+                        event_data.get('recurrence_rule', ''),
+                        event_data.get('reminder_minutes', []),
+                        json.dumps(event_data.get('attendees', [])),
+                        event_data.get('status', 'confirmed'),
+                        event_data.get('visibility', 'private'),
+                        False,
+                        now.replace(tzinfo=None),
+                        now.replace(tzinfo=None)
+                    )
+                    
+                    logger.info(f"✅ Calendar event {event_id} saved to database")
+                    
+                    # Return database response
+                    return {
+                        "id": event_id,
+                        "title": title,
+                        "description": event_data.get('description', ''),
+                        "start": start_time.isoformat(),
+                        "end": end_time.isoformat(),
+                        "all_day": event_data.get('all_day', False),
+                        "timezone": event_data.get('timezone', 'UTC'),
+                        "color": event_data.get('color', '#4285f4'),
+                        "location": event_data.get('location', ''),
+                        "meeting_url": event_data.get('meeting_url', ''),
+                        "event_type": event_data.get('event_type', 'event'),
+                        "status": event_data.get('status', 'confirmed'),
+                        "visibility": event_data.get('visibility', 'private'),
+                        "user_id": current_user['id'],
+                        "created_at": now.isoformat(),
+                        "updated_at": now.isoformat(),
+                        "attendees": event_data.get('attendees', []),
+                        "reminder_minutes": event_data.get('reminder_minutes', [])
+                    }
+                    
+            except Exception as db_error:
+                logger.warning(f"Database save failed: {db_error}, using memory fallback")
+        
+        # Memory storage fallback
         new_event = {
             "id": event_id,
             "user_id": current_user['id'],
-            "title": event_data.get('title', ''),
+            "title": title,
             "description": event_data.get('description', ''),
             "start_time": start_time,
             "end_time": end_time,
             "all_day": event_data.get('all_day', False),
             "timezone": event_data.get('timezone', 'UTC'),
             "color": event_data.get('color', '#4285f4'),
-            "location": event_data.get('location'),
-            "meeting_url": event_data.get('meeting_url'),
+            "location": event_data.get('location', ''),
+            "meeting_url": event_data.get('meeting_url', ''),
             "event_type": event_data.get('event_type', 'event'),
-            "recurrence_rule": event_data.get('recurrence_rule'),
+            "recurrence_rule": event_data.get('recurrence_rule', ''),
             "reminder_minutes": event_data.get('reminder_minutes', []),
-            "attendees": event_data.get('attendees', {}),
-            "status": 'confirmed',
+            "attendees": event_data.get('attendees', []),
+            "status": event_data.get('status', 'confirmed'),
             "visibility": event_data.get('visibility', 'private'),
             "ai_generated": False,
             "created_at": now,
@@ -4700,13 +4756,21 @@ async def create_event_alias(
         
         memory_storage['user_events'][current_user['id']].append(new_event)
         
-        logger.info(f"✅ Calendar event created in memory: {event_id}")
+        logger.info(f"✅ Calendar event {event_id} created in memory")
         
         # Send real-time update
-        await manager.send_personal_message({
-            "type": "event_created",
-            "data": new_event
-        }, current_user['id'])
+        try:
+            await manager.send_personal_message({
+                "type": "event_created",
+                "data": {
+                    "id": event_id,
+                    "title": title,
+                    "start": start_time.isoformat(),
+                    "end": end_time.isoformat()
+                }
+            }, current_user['id'])
+        except Exception as ws_error:
+            logger.warning(f"WebSocket notification failed: {ws_error}")
         
         return {
             "id": event_id,
@@ -4724,12 +4788,21 @@ async def create_event_alias(
             "visibility": new_event["visibility"],
             "user_id": new_event["user_id"],
             "created_at": new_event["created_at"].isoformat(),
-            "updated_at": new_event["updated_at"].isoformat()
+            "updated_at": new_event["updated_at"].isoformat(),
+            "attendees": new_event["attendees"],
+            "reminder_minutes": new_event["reminder_minutes"]
         }
             
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"❌ Failed to create calendar event via alias: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
+        logger.error(f"❌ Failed to create calendar event: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"일정 생성 중 서버 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @app.delete("/api/tasks/{task_id}")
@@ -4939,23 +5012,61 @@ async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_
 
 @app.post("/api/ai/chat")
 async def ai_chat(request: dict, current_user: dict = Depends(get_current_user)):
-    """Advanced AI chat with context awareness"""
+    """Advanced AI chat with context awareness and smart responses"""
     try:
         # Extract message from various possible fields
         user_message = request.get('message') or request.get('prompt') or request.get('query', '')
         
         if not user_message:
             return {
-                "response": "메시지를 입력해주세요.",
+                "response": "안녕하세요! 무엇을 도와드릴까요? 노트 작성, 일정 관리, 작업 생성 등에 대해 물어보세요.",
                 "usage": None,
-                "model": "error",
-                "error": "No message provided"
+                "model": "jihyung-assistant",
+                "suggestions": [
+                    "오늘 할 일을 정리해주세요",
+                    "중요한 회의 내용을 노트로 만들어주세요",
+                    "내일 일정을 확인해주세요"
+                ]
             }
             
         logger.info(f"🤖 AI Chat request from user {current_user['id']}: {user_message[:100]}...")
         
+        # Check for specific command patterns first
+        if any(keyword in user_message.lower() for keyword in ['할 일', '작업', '태스크', 'task']):
+            return {
+                "response": "작업 관리를 도와드리겠습니다! 새로운 작업을 추가하거나 기존 작업을 확인하고 싶으시면 구체적으로 말씀해주세요.",
+                "model": "jihyung-assistant",
+                "suggestions": [
+                    "새로운 작업 추가하기",
+                    "오늘 마감인 작업 보기",
+                    "완료된 작업 확인하기"
+                ]
+            }
+        
+        if any(keyword in user_message.lower() for keyword in ['일정', '캘린더', '미팅', '회의']):
+            return {
+                "response": "일정 관리를 도와드리겠습니다! 새로운 일정을 추가하거나 기존 일정을 확인하고 싶으시면 날짜와 시간을 알려주세요.",
+                "model": "jihyung-assistant",
+                "suggestions": [
+                    "오늘 일정 확인하기",
+                    "새로운 미팅 일정 추가하기",
+                    "이번 주 일정 보기"
+                ]
+            }
+        
+        if any(keyword in user_message.lower() for keyword in ['노트', '메모', '기록']):
+            return {
+                "response": "노트 작성을 도와드리겠습니다! 어떤 내용을 기록하고 싶으신가요? 아이디어, 회의록, 학습 내용 등 무엇이든 괜찮습니다.",
+                "model": "jihyung-assistant",
+                "suggestions": [
+                    "새로운 노트 작성하기",
+                    "최근 노트 확인하기",
+                    "노트 검색하기"
+                ]
+            }
+        
+        # Try OpenAI if configured
         if OPENAI_API_KEY:
-            # Try OpenAI if key is available
             try:
                 import openai
                 client = openai.OpenAI(api_key=OPENAI_API_KEY)
@@ -4967,18 +5078,30 @@ async def ai_chat(request: dict, current_user: dict = Depends(get_current_user))
                     context_parts.append(f"Context: {context}")
                 
                 # Add recent user activity for better context
-                if db_pool:
-                    async with db_pool.acquire() as connection:
-                        recent_notes = await connection.fetch(
-                            "SELECT title, content FROM notes WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 3",
-                            uuid.UUID(current_user['id'])
-                        )
-                        if recent_notes:
-                            context_parts.append("Recent notes: " + ", ".join([note['title'] for note in recent_notes]))
+                try:
+                    if db_pool:
+                        async with db_pool.acquire() as connection:
+                            recent_notes = await connection.fetch(
+                                "SELECT title FROM notes WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 3",
+                                uuid.UUID(current_user['id'])
+                            )
+                            if recent_notes:
+                                context_parts.append("Recent notes: " + ", ".join([note['title'] for note in recent_notes]))
+                    else:
+                        # Memory storage context
+                        user_notes = memory_storage.get('notes', {})
+                        recent_titles = [note.get('title', '') for note in list(user_notes.values())[-3:] if note.get('user_id') == current_user['id']]
+                        if recent_titles:
+                            context_parts.append("Recent notes: " + ", ".join(recent_titles))
+                except Exception as context_error:
+                    logger.warning(f"Failed to build context: {context_error}")
                 
-                system_message = f"""당신은 Jihyung의 지능형 어시스턴트입니다. 
+                system_message = f"""당신은 Jihyung의 지능형 개인 어시스턴트입니다. 
 사용자의 생산성 향상을 위해 노트, 작업, 일정 관리를 도와주세요.
-사용자 컨텍스트: {' | '.join(context_parts) if context_parts else '없음'}"""
+한국어로 친근하고 도움이 되는 답변을 제공하세요.
+사용자 컨텍스트: {' | '.join(context_parts) if context_parts else '없음'}
+
+응답은 간결하고 실용적이어야 하며, 구체적인 행동 제안을 포함해야 합니다."""
 
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -4986,12 +5109,24 @@ async def ai_chat(request: dict, current_user: dict = Depends(get_current_user))
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message}
                     ],
-                    max_tokens=1000,
+                    max_tokens=500,
                     temperature=0.7
                 )
                 
+                ai_response = response.choices[0].message.content
+                
+                # Log interaction if possible
+                try:
+                    await log_ai_interaction(
+                        current_user['id'], "chat", user_message,
+                        ai_response, "gpt-3.5-turbo",
+                        response.usage.total_tokens if response.usage else 0
+                    )
+                except Exception as log_error:
+                    logger.warning(f"Failed to log AI interaction: {log_error}")
+                
                 return {
-                    "response": response.choices[0].message.content,
+                    "response": ai_response,
                     "usage": response.usage.dict() if response.usage else None,
                     "model": "gpt-3.5-turbo",
                     "context_used": bool(context_parts)
