@@ -60,7 +60,7 @@ export const AIOrchestrator: React.FC<AIOrchestratorProps> = ({
       
       switch (action) {
         case 'focus_high_priority':
-          response = await fetch('http://localhost:8006/api/ai/chat', {
+          response = await fetch('/api/ai/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -73,7 +73,7 @@ export const AIOrchestrator: React.FC<AIOrchestratorProps> = ({
           break
           
         case 'time_blocking':
-          response = await fetch('http://localhost:8006/api/ai/chat', {
+          response = await fetch('/api/ai/chat', {
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -86,7 +86,7 @@ export const AIOrchestrator: React.FC<AIOrchestratorProps> = ({
           break
           
         case 'organize_notes':
-          response = await fetch('http://localhost:8006/api/ai/chat', {
+          response = await fetch('/api/ai/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -146,7 +146,7 @@ export const AIOrchestrator: React.FC<AIOrchestratorProps> = ({
 
     try {
       // Call backend AI API with proper base URL
-      const response = await fetch('http://localhost:8006/api/ai/chat', {
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -42,15 +42,15 @@ import { Router } from './components/Router'
 import { ErrorFallback } from './ErrorFallback'
 
 // Page Components  
-import { CalendarPage } from './components/pages/CalendarPage-Enhanced'
-import { NotesPage } from './components/pages/NotesPage-Enhanced'
-import { TasksPage } from './components/pages/TasksPage-Enhanced-Fixed'
+import { CalendarPage } from './components/pages/CalendarPage-UltraModern'
+import { NotesPage } from './components/pages/NotesPage-UltraModern'
+import { TasksPage } from './components/pages/TasksPage-UltraModern'
 
 // Advanced Components
 import { AIOrchestrator } from './components/AI/AIOrchestrator'
 import { KnowledgeGraph } from './components/Graph/KnowledgeGraph'
 import { AutoScheduler } from './components/Calendar/AutoScheduler'
-// import { CRDTEditor } from './components/Editor/CRDTEditor'
+import CollaborationWorkspace from './components/Collaboration/CollaborationWorkspace'
 import { MagicCapture } from './components/Capture/MagicCapture'
 // import { PrivacyCenter } from './components/Privacy/PrivacyCenter'
 // import { AnalyticsDashboard } from './components/Analytics/AnalyticsDashboard'
@@ -852,6 +852,7 @@ function AISecondBrainApp() {
         {appState.currentPage === 'notes' && <NotesPage />}
         {appState.currentPage === 'tasks' && <TasksPage />}
         {appState.currentPage === 'calendar' && <CalendarPage />}
+        {appState.currentPage === 'collaboration' && <CollaborationWorkspace />}
         {appState.currentPage === 'graph' && (
           <KnowledgeGraph 
             notes={appState.notes}

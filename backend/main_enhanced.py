@@ -4623,11 +4623,35 @@ async def create_event_alias(
             
             raise HTTPException(status_code=400, detail=f"잘못된 {field_name} 형식입니다.")
         
-        # Parse start and end times
-        start_time = parse_datetime_safe(event_data.get('start'), "시작 시간")
-        end_time = parse_datetime_safe(event_data.get('end'), "종료 시간")
+        # Parse start and end times robustly
+        start_raw = event_data.get('start')
+        end_raw = event_data.get('end')
+        
+        def parse_iso_datetime(dt_str, field_name):
+            if not dt_str:
+                raise HTTPException(status_code=400, detail=f"{field_name}이 필요합니다.")
+            try:
+                # Handle 'YYYY-MM-DDTHH:mm:ss.sssZ' and 'YYYY-MM-DDTHH:mm:ss+09:00' formats
+                if isinstance(dt_str, str):
+                    if dt_str.endswith('Z'):
+                        dt_str = dt_str[:-1] + '+00:00'
+                    return datetime.fromisoformat(dt_str)
+                elif isinstance(dt_str, datetime):
+                    return dt_str
+                else:
+                    raise ValueError(f"잘못된 {field_name} 형식: {dt_str}")
+            except Exception as e:
+                logger.error(f"❌ {field_name} 파싱 실패: {dt_str} ({e})")
+                raise HTTPException(status_code=400, detail=f"잘못된 {field_name} 형식입니다. ISO 8601 형식 필요")
+        
+        start_time = parse_iso_datetime(start_raw, "시작 시간")
+        end_time = parse_iso_datetime(end_raw, "종료 시간")
         
         # Validate time logic
+        if not start_time:
+            raise HTTPException(status_code=400, detail="Event start time is required")
+        if not end_time:
+            raise HTTPException(status_code=400, detail="Event end time is required")
         if start_time >= end_time:
             raise HTTPException(status_code=400, detail="종료 시간은 시작 시간보다 늦어야 합니다.")
         

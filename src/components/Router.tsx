@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { House, File, Calendar as CalendarIcon, Target } from '@phosphor-icons/react'
+import { House, File, Calendar as CalendarIcon, Target, Users } from '@phosphor-icons/react'
 import { Button } from './ui/button'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +14,7 @@ export function Router({ currentPage, onNavigate }: RouterProps) {
     { id: 'notes', label: '노트', icon: File },
     { id: 'tasks', label: '태스크', icon: Target },
     { id: 'calendar', label: '캘린더', icon: CalendarIcon },
+    { id: 'collaboration', label: '협업', icon: Users },
   ]
 
   return (
