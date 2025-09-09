@@ -593,7 +593,6 @@ function AISecondBrainApp() {
       {/* ===================== */}
       
       {/* Enhanced Capture Modal */}
-            {/* Enhanced Capture Modal */}
       <CaptureModal 
         isOpen={uiState.isCaptureOpen} 
         onClose={() => setUIState(prev => ({ ...prev, isCaptureOpen: false }))}
@@ -610,15 +609,159 @@ function AISecondBrainApp() {
         onCreateTask={() => setUIState(prev => ({ ...prev, isCaptureOpen: true }))}
         onCreateEvent={() => setAppState(prev => ({ ...prev, currentPage: 'calendar' }))}
       />
-              </div>
-              
-              {/* Right Column - Quick Actions & Tools */}
-              <div className="space-y-6">
-                {/* Quick Actions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Lightning className="h-5 w-5" />
+
+      {/* AI Assistant Dialog */}
+      <Dialog open={uiState.isAIAssistantOpen} onOpenChange={(open) => setUIState(prev => ({ ...prev, isAIAssistantOpen: open }))}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkle className="h-5 w-5" />
+              AI Assistant
+            </DialogTitle>
+            <DialogDescription>
+              Your intelligent productivity companion
+            </DialogDescription>
+          </DialogHeader>
+          <AIOrchestrator 
+            notes={appState.notes}
+            tasks={appState.tasks}
+            events={appState.events}
+            mode={appState.aiMode}
+            privacyMode={appState.privacyMode}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Knowledge Graph Dialog */}
+      <Dialog open={uiState.isGraphViewOpen} onOpenChange={(open) => setUIState(prev => ({ ...prev, isGraphViewOpen: open }))}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Network className="h-5 w-5" />
+              Knowledge Graph
+            </DialogTitle>
+            <DialogDescription>
+              Visualize connections between your notes, tasks, and events
+            </DialogDescription>
+          </DialogHeader>
+          <KnowledgeGraph 
+            notes={appState.notes}
+            tasks={appState.tasks}
+            events={appState.events}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto Scheduler Dialog */}
+      <Dialog open={uiState.isAutoScheduleOpen} onOpenChange={(open) => setUIState(prev => ({ ...prev, isAutoScheduleOpen: open }))}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Auto Scheduler
+            </DialogTitle>
+            <DialogDescription>
+              Let AI optimize your schedule
+            </DialogDescription>
+          </DialogHeader>
+          <AutoScheduler 
+            tasks={appState.tasks}
+            events={appState.events}
+            onScheduled={(newEvents) => {
+              setAppState(prev => ({
+                ...prev,
+                events: [...prev.events, ...newEvents]
+              }))
+              setUIState(prev => ({ ...prev, isAutoScheduleOpen: false }))
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Magic Capture Dialog */}
+      <Dialog open={uiState.isMagicCaptureOpen} onOpenChange={(open) => setUIState(prev => ({ ...prev, isMagicCaptureOpen: open }))}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Lightning className="h-5 w-5" />
+              Magic Capture
+            </DialogTitle>
+            <DialogDescription>
+              Capture anything with AI-powered processing
+            </DialogDescription>
+          </DialogHeader>
+          <MagicCapture 
+            onCapture={(data) => {
+              // Handle magic capture data
+              console.log('Magic capture:', data)
+              setUIState(prev => ({ ...prev, isMagicCaptureOpen: false }))
+              toast.success('Content captured with AI magic!')
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Privacy Center Dialog */}
+      <Dialog open={uiState.isPrivacyCenterOpen} onOpenChange={(open) => setUIState(prev => ({ ...prev, isPrivacyCenterOpen: open }))}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Privacy Center
+            </DialogTitle>
+            <DialogDescription>
+              Manage your data privacy and security settings
+            </DialogDescription>
+          </DialogHeader>
+          {/* PrivacyCenter temporarily disabled */}
+          <div className="p-4 text-center text-gray-500">
+            Privacy Center coming soon...
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Analytics Dashboard Dialog */}
+      <Dialog open={uiState.isAnalyticsOpen} onOpenChange={(open) => setUIState(prev => ({ ...prev, isAnalyticsOpen: open }))}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              Analytics Dashboard
+            </DialogTitle>
+            <DialogDescription>
+              Productivity insights and performance metrics
+            </DialogDescription>
+          </DialogHeader>
+          {/* AnalyticsDashboard temporarily disabled */}
+          <div className="p-4 text-center text-gray-500">
+            Analytics Dashboard coming soon...
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// =====================
+// ERROR BOUNDARY WRAPPER
+// =====================
+function App() {
+  return (
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <QueryClientProvider client={queryClient}>
+        <AISecondBrainApp />
+        <Toaster 
+          position="top-right"
+          expand={true}
+          richColors
+          closeButton
+        />
+      </QueryClientProvider>
+    </ErrorBoundary>
+  )
+}
+
+export default App
                       Quick Actions
                     </CardTitle>
                     <CardDescription>

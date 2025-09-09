@@ -2,7 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
 
 
-import App from './App.tsx'
+import SuperApp from './App-SuperEnhanced.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'
 
 import "./main.css"
@@ -10,7 +10,7 @@ import "./index.css"
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
-    <App />
+    <SuperApp />
   {/* <Toaster position="top-right" /> */}
   </ErrorBoundary>
 )

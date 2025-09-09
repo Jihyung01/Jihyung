@@ -49,32 +49,38 @@ export function AIAssistant({
   const handleSummarize = async (text?: string) => {
     const contentToSummarize = text || selectedNote?.content || inputText;
     if (!contentToSummarize?.trim()) {
-      toast.error('요약할 내용이 없습니다');
+      toast.error('요약할 내용을 입력해주세요');
       return;
     }
 
     setLoading(true);
     try {
-      const result = await postJSON('/api/ai/summarize', { 
-        text: contentToSummarize,
-        style: 'bullet_points'
-      });
-      setResults(prev => ({ ...prev, summary: result.summary }));
-      onSummaryGenerated?.(result.summary);
-      toast.success('요약이 완료되었습니다');
+      const response = await postJSON('/api/ai/summarize', {
+        content: contentToSummarize,
+        max_length: 200
+      }) as { summary?: string };
+      
+      if (response.summary) {
+        setResults(prev => ({ ...prev, summary: response.summary }));
+        onSummaryGenerated?.(response.summary);
+        toast.success('요약이 생성되었습니다! 📝');
+      } else {
+        throw new Error('요약 생성 실패');
+      }
     } catch (error) {
-      console.error('요약 실패:', error);
-      // 폴백 요약
-      const fallbackSummary = `📋 **요약**\n\n• 핵심 내용: ${contentToSummarize.slice(0, 100)}...\n• 주요 키워드: ${contentToSummarize.split(' ').slice(0, 5).join(', ')}\n• 길이: ${contentToSummarize.length}자`;
-      setResults(prev => ({ ...prev, summary: fallbackSummary }));
-      onSummaryGenerated?.(fallbackSummary);
-      toast.success('요약이 완료되었습니다 (로컬 처리)');
+      console.error('Summary error:', error);
+      // 실제 API 실패 시 간단한 로컬 요약 제공
+      const localSummary = contentToSummarize.length > 100 
+        ? contentToSummarize.substring(0, 100) + '...'
+        : contentToSummarize;
+      setResults(prev => ({ ...prev, summary: `요약: ${localSummary}` }));
+      toast.success('로컬 요약이 생성되었습니다');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleExtractTasks = async (text?: string) => {
+  const handleTaskExtraction = async (text?: string) => {
     const contentToProcess = text || selectedNote?.content || inputText;
     if (!contentToProcess?.trim()) {
       toast.error('작업을 추출할 내용이 없습니다');
@@ -85,15 +91,50 @@ export function AIAssistant({
     try {
       const result = await postJSON('/api/ai/extract-tasks', { 
         text: contentToProcess 
-      });
+      }) as { tasks?: any[] };
+      
       setResults(prev => ({ ...prev, tasks: result.tasks || [] }));
       onTasksExtracted?.(result.tasks || []);
+      
       if (result.tasks && result.tasks.length > 0) {
         toast.success(`${result.tasks.length}개의 작업이 추출되었습니다`);
       } else {
         toast.info('추출된 작업이 없습니다');
       }
     } catch (error) {
+      console.error('작업 추출 실패:', error);
+      // 폴백 작업 추출
+      const fallbackTasks = extractTasksLocally(contentToProcess);
+      setResults(prev => ({ ...prev, tasks: fallbackTasks }));
+      onTasksExtracted?.(fallbackTasks);
+      toast.success(`${fallbackTasks.length}개의 작업이 추출되었습니다 (로컬 처리)`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 로컬 작업 추출 함수
+  const extractTasksLocally = (content: string): any[] => {
+    const lines = content.split('\n');
+    const tasks: any[] = [];
+    
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      // "해야 할", "작업:", "TODO:", "- " 등으로 시작하는 라인을 작업으로 인식
+      if (trimmed.match(/^[-*•]?\s*(해야\s*할|작업|TODO|할\s*일|task)/i) ||
+          trimmed.match(/^[-*•]\s+/)) {
+        tasks.push({
+          id: `local-${index}`,
+          title: trimmed.replace(/^[-*•]?\s*(해야\s*할|작업|TODO|할\s*일|task)[:：]?\s*/i, ''),
+          description: '',
+          priority: 'medium',
+          status: 'pending'
+        });
+      }
+    });
+    
+    return tasks;
+  };
       console.error('작업 추출 실패:', error);
       // 폴백 작업 추출
       const sentences = contentToProcess.split(/[.!?]+/).filter(s => s.trim().length > 10);

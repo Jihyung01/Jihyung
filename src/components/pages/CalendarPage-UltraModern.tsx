@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -8,18 +8,21 @@ import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
-import { Calendar as CalendarIcon, Plus, Search, Filter, MoreHorizontal, Edit3, Trash2, Clock, Users, MapPin, Video, Sparkles, Grid3X3, List, ChevronLeft, ChevronRight, CalendarDays, Eye, Zap } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import { Switch } from '../ui/switch';
+import { Calendar as CalendarIcon, Plus, Search, Filter, MoreHorizontal, Edit3, Trash2, Clock, Users, MapPin, Video, Sparkles, Grid3X3, List, ChevronLeft, ChevronRight, CalendarDays, Eye, Zap, Target, CheckCircle2, Bell, Save, X } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, startOfWeek, endOfWeek, parseISO, addDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
-import enhancedAPI, { type CalendarEvent } from '@/lib/enhanced-api.ts';
+import enhancedAPI, { type CalendarEvent, type Task } from '@/lib/enhanced-api.ts';
 
 interface CalendarPageProps {
   onEventCreated?: (event: CalendarEvent) => void;
+  onTaskCreated?: (task: Task) => void;
 }
 
-export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated }) => {
+export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTaskCreated }) => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,8 +30,10 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated }) =>
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | 'list'>('month');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showQuickCreateDialog, setShowQuickCreateDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [viewingEvent, setViewingEvent] = useState<CalendarEvent | null>(null);
+  const [showTaskIntegration, setShowTaskIntegration] = useState(true);
 
   // 새 이벤트 폼 상태
   const [newEvent, setNewEvent] = useState({
@@ -37,8 +42,18 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated }) =>
     start_time: '',
     end_time: '',
     location: '',
-    attendees: '',
-    color: '#3b82f6'
+    participants: '',
+    category: 'work',
+    color: 'blue',
+    is_all_day: false,
+    reminder_minutes: 15,
+    create_as_task: false
+  });
+
+  // Quick create 상태
+  const [quickEvent, setQuickEvent] = useState({
+    title: '',
+    time: '09:00'
   });
 
   const loadEvents = async () => {
@@ -49,6 +64,149 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated }) =>
       setFilteredEvents(data);
     } catch (error) {
       console.error('Failed to load events:', error);
+      toast.error('일정을 불러올 수 없습니다');
+    }
+  };
+
+  const loadTasks = async () => {
+    try {
+      const data = await enhancedAPI.getTasks();
+      setTasks(data);
+    } catch (error) {
+      console.error('Failed to load tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createEvent = async () => {
+    try {
+      if (!newEvent.title.trim()) {
+        toast.error('제목을 입력해주세요');
+        return;
+      }
+
+      let startDateTime, endDateTime;
+      
+      if (newEvent.is_all_day) {
+        startDateTime = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+        endDateTime = startDateTime;
+      } else {
+        if (!newEvent.start_time || !newEvent.end_time) {
+          toast.error('시작 시간과 종료 시간을 입력해주세요');
+          return;
+        }
+        
+        const baseDate = selectedDate || new Date();
+        startDateTime = `${format(baseDate, 'yyyy-MM-dd')}T${newEvent.start_time}:00`;
+        endDateTime = `${format(baseDate, 'yyyy-MM-dd')}T${newEvent.end_time}:00`;
+      }
+
+      const eventData = {
+        title: newEvent.title,
+        description: newEvent.description,
+        start_time: startDateTime,
+        end_time: endDateTime,
+        location: newEvent.location,
+        participants: newEvent.participants ? newEvent.participants.split(',').map(p => p.trim()) : [],
+        category: newEvent.category,
+        color: newEvent.color,
+        is_all_day: newEvent.is_all_day,
+        reminder_minutes: newEvent.reminder_minutes
+      };
+
+      console.log('Creating event with data:', eventData);
+      const result = await enhancedAPI.createCalendarEvent(eventData);
+      
+      // 태스크로도 생성하는 경우
+      if (newEvent.create_as_task) {
+        const taskData = {
+          title: newEvent.title,
+          description: newEvent.description,
+          due_date: startDateTime,
+          priority: 'medium' as const,
+          category: newEvent.category,
+          status: 'pending' as const
+        };
+        
+        try {
+          const taskResult = await enhancedAPI.createTask(taskData);
+          onTaskCreated?.(taskResult);
+          toast.success('일정과 태스크가 함께 생성되었습니다! 🎯');
+        } catch (taskError) {
+          console.error('Failed to create task:', taskError);
+          toast.success('일정이 생성되었습니다! (태스크 생성 실패) ✨');
+        }
+      } else {
+        toast.success('일정이 성공적으로 생성되었습니다! ✨');
+      }
+
+      onEventCreated?.(result);
+      
+      setNewEvent({
+        title: '',
+        description: '',
+        start_time: '',
+        end_time: '',
+        location: '',
+        participants: '',
+        category: 'work',
+        color: 'blue',
+        is_all_day: false,
+        reminder_minutes: 15,
+        create_as_task: false
+      });
+      setShowCreateDialog(false);
+      await loadEvents();
+    } catch (error) {
+      console.error('Failed to create event:', error);
+      toast.error('일정 생성에 실패했습니다: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
+  const createQuickEvent = async () => {
+    try {
+      if (!quickEvent.title.trim()) {
+        toast.error('제목을 입력해주세요');
+        return;
+      }
+
+      const baseDate = selectedDate || new Date();
+      const startDateTime = `${format(baseDate, 'yyyy-MM-dd')}T${quickEvent.time}:00`;
+      const endDateTime = `${format(baseDate, 'yyyy-MM-dd')}T${quickEvent.time}:00`;
+
+      const eventData = {
+        title: quickEvent.title,
+        description: '',
+        start_time: startDateTime,
+        end_time: endDateTime,
+        location: '',
+        participants: [],
+        category: 'personal',
+        color: 'blue',
+        is_all_day: false,
+        reminder_minutes: 15
+      };
+
+      const result = await enhancedAPI.createCalendarEvent(eventData);
+      onEventCreated?.(result);
+      
+      setQuickEvent({ title: '', time: '09:00' });
+      setShowQuickCreateDialog(false);
+      await loadEvents();
+      toast.success('빠른 일정이 생성되었습니다! ⚡');
+    } catch (error) {
+      console.error('Failed to create quick event:', error);
+      toast.error('빠른 일정 생성에 실패했습니다');
+    }
+  };
+
+  // 날짜 더블클릭 핸들러
+  const handleDateDoubleClick = (date: Date) => {
+    setSelectedDate(date);
+    setQuickEvent({ ...quickEvent, title: '' });
+    setShowQuickCreateDialog(true);
+  };
       toast.error('이벤트를 불러오는데 실패했습니다');
     } finally {
       setLoading(false);
