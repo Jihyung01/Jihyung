@@ -355,13 +355,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
     loadTasks();
   }, []);
 
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = searchQuery === '' || 
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesSearch;
-  });
+  // Events are already filtered and stored in filteredEvents state
 
   if (loading) {
     return (
