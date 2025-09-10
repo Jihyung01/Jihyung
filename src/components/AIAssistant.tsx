@@ -135,9 +135,28 @@ export function AIAssistant({
     
     return tasks;
   };
+
+  const handleExtractTasks = async () => {
+    if (!inputText?.trim()) {
+      toast.error('추출할 텍스트를 입력해주세요');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 로컬 작업 추출 시도
+      const localTasks = extractTasksLocally(inputText);
+      
+      if (localTasks.length > 0) {
+        setResults(prev => ({ ...prev, tasks: localTasks }));
+        onTasksExtracted?.(localTasks);
+        toast.success(`${localTasks.length}개의 작업이 추출되었습니다`);
+        return;
+      }
+    } catch (error) {
       console.error('작업 추출 실패:', error);
       // 폴백 작업 추출
-      const sentences = contentToProcess.split(/[.!?]+/).filter(s => s.trim().length > 10);
+      const sentences = inputText.split(/[.!?]+/).filter(s => s.trim().length > 10);
       const fallbackTasks = sentences.slice(0, 3).map((sentence, index) => ({
         id: `task-${index}`,
         title: sentence.trim().slice(0, 50) + (sentence.length > 50 ? '...' : ''),

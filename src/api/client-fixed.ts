@@ -132,7 +132,6 @@ export async function patchJSON<T>(
     body: JSON.stringify(data)
   })
 }
-}
 
 // Health check
 export const healthCheck = () => get<{ status: string }>('/health')

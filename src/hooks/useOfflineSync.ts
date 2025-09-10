@@ -29,9 +29,12 @@ interface AISecondBrainDB {
 // Custom hook return type
 interface UseOfflineSyncReturn {
   isOnline: boolean
+  isOffline: boolean
   pendingSync: PendingSyncItem[]
   saveForSync: (action: string, data: any) => Promise<void>
+  syncData: () => Promise<void>
   syncPendingData: () => Promise<void>
+  quantumSync: () => Promise<void>
   cacheData: (key: string, data: any) => Promise<void>
   getCachedData: (key: string) => Promise<any>
   clearPendingSync: () => Promise<void>

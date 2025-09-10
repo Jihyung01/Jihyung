@@ -1,88 +1,138 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 
-export interface VirtualizedItem {
-  id: string
-  index: number
-  height: number
-  data: any
-}
-
-export interface VirtualizationConfig {
+interface VirtualizationOptions {
   itemHeight: number
   containerHeight: number
-  overscan: number
-  scrollTop: number
+  overscan?: number
+  horizontal?: boolean
 }
 
-export const useVirtualization = (
-  items: any[],
-  config: VirtualizationConfig
+interface VirtualItem {
+  index: number
+  start: number
+  end: number
+  size: number
+}
+
+export const useVirtualization = <T>(
+  items: T[],
+  options: VirtualizationOptions
 ) => {
-  const [scrollTop, setScrollTop] = useState(config.scrollTop || 0)
-
+  const [scrollTop, setScrollTop] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
+  
   const {
-    visibleStartIndex,
-    visibleEndIndex,
-    totalHeight,
-    visibleItems
-  } = useMemo(() => {
-    const { itemHeight, containerHeight, overscan } = config
+    itemHeight,
+    containerHeight,
+    overscan = 5,
+    horizontal = false
+  } = options
+
+  const totalSize = useMemo(() => {
+    return items.length * itemHeight
+  }, [items.length, itemHeight])
+
+  const visibleRange = useMemo(() => {
+    const scrollPosition = horizontal ? scrollLeft : scrollTop
+    const containerSize = horizontal ? containerHeight : containerHeight
     
-    const startIndex = Math.floor(scrollTop / itemHeight)
-    const endIndex = Math.min(
-      items.length - 1,
-      Math.floor((scrollTop + containerHeight) / itemHeight)
+    const start = Math.floor(scrollPosition / itemHeight)
+    const end = Math.min(
+      start + Math.ceil(containerSize / itemHeight),
+      items.length - 1
     )
-    
-    const visibleStart = Math.max(0, startIndex - overscan)
-    const visibleEnd = Math.min(items.length - 1, endIndex + overscan)
-    
-    const visible = items.slice(visibleStart, visibleEnd + 1).map((item, index) => ({
-      id: item.id || `item_${visibleStart + index}`,
-      index: visibleStart + index,
-      height: itemHeight,
-      data: item,
-      style: {
-        position: 'absolute' as const,
-        top: (visibleStart + index) * itemHeight,
-        height: itemHeight,
-        width: '100%'
-      }
-    }))
-    
+
     return {
-      visibleStartIndex: visibleStart,
-      visibleEndIndex: visibleEnd,
-      totalHeight: items.length * itemHeight,
-      visibleItems: visible
+      start: Math.max(0, start - overscan),
+      end: Math.min(items.length - 1, end + overscan)
     }
-  }, [items, config, scrollTop])
+  }, [scrollTop, scrollLeft, itemHeight, containerHeight, horizontal, overscan, items.length])
 
-  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const newScrollTop = event.currentTarget.scrollTop
-    setScrollTop(newScrollTop)
-  }, [])
-
-  const scrollToIndex = useCallback((index: number) => {
-    const newScrollTop = index * config.itemHeight
-    setScrollTop(newScrollTop)
-  }, [config.itemHeight])
-
-  const scrollToItem = useCallback((itemId: string) => {
-    const index = items.findIndex(item => item.id === itemId)
-    if (index !== -1) {
-      scrollToIndex(index)
+  const virtualItems = useMemo((): VirtualItem[] => {
+    const items: VirtualItem[] = []
+    
+    for (let i = visibleRange.start; i <= visibleRange.end; i++) {
+      items.push({
+        index: i,
+        start: i * itemHeight,
+        end: (i + 1) * itemHeight,
+        size: itemHeight
+      })
     }
-  }, [items, scrollToIndex])
+    
+    return items
+  }, [visibleRange, itemHeight])
+
+  const visibleItems = useMemo(() => {
+    return items.slice(visibleRange.start, visibleRange.end + 1)
+  }, [items, visibleRange])
+
+  const scrollToIndex = useCallback((index: number, align: 'start' | 'center' | 'end' = 'start') => {
+    const itemStart = index * itemHeight
+    let scrollPosition = itemStart
+
+    if (align === 'center') {
+      scrollPosition = itemStart - containerHeight / 2 + itemHeight / 2
+    } else if (align === 'end') {
+      scrollPosition = itemStart - containerHeight + itemHeight
+    }
+
+    scrollPosition = Math.max(0, Math.min(scrollPosition, totalSize - containerHeight))
+    
+    if (horizontal) {
+      setScrollLeft(scrollPosition)
+    } else {
+      setScrollTop(scrollPosition)
+    }
+  }, [itemHeight, containerHeight, totalSize, horizontal])
+
+  const getItemProps = useCallback((item: VirtualItem) => {
+    const style = horizontal ? {
+      position: 'absolute' as const,
+      left: item.start,
+      width: item.size,
+      height: '100%'
+    } : {
+      position: 'absolute' as const,
+      top: item.start,
+      height: item.size,
+      width: '100%'
+    }
+
+    return {
+      style,
+      'data-index': item.index
+    }
+  }, [horizontal])
+
+  const getContainerProps = useCallback(() => {
+    const style = {
+      position: 'relative' as const,
+      width: horizontal ? totalSize : '100%',
+      height: horizontal ? '100%' : totalSize,
+      overflow: 'auto' as const
+    }
+
+    return {
+      style,
+      onScroll: (e: React.UIEvent<HTMLElement>) => {
+        const target = e.target as HTMLElement
+        if (horizontal) {
+          setScrollLeft(target.scrollLeft)
+        } else {
+          setScrollTop(target.scrollTop)
+        }
+      }
+    }
+  }, [totalSize, horizontal])
 
   return {
+    virtualItems,
     visibleItems,
-    totalHeight,
-    visibleStartIndex,
-    visibleEndIndex,
-    handleScroll,
+    totalSize,
     scrollToIndex,
-    scrollToItem,
-    scrollTop
+    getItemProps,
+    getContainerProps,
+    visibleRange
   }
 }

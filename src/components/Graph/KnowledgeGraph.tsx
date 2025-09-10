@@ -524,3 +524,5 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     </div>
   )
 }
+
+export default KnowledgeGraph
