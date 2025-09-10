@@ -18,10 +18,31 @@ import {
 
 // 기존 실제 컴포넌트들 import  
 import CalendarPageUltraModernEnhanced from './components/pages/CalendarPage-UltraModern-Enhanced'
-import DashboardViewUltraModern from './components/DashboardView-UltraModern'
+// import DashboardViewUltraModern from './components/DashboardView-UltraModern'
 import SmartAIAssistant from './components/AI/SmartAIAssistant'
 import NotesPageUltraModern from './components/pages/NotesPage-UltraModern'
 import TasksPageUltraModern from './components/pages/TasksPage-UltraModern'
+
+// Temporary fallback dashboard
+const DashboardViewUltraModern = ({ notes, tasks, events, projects, stats }: any) => (
+  <div className="p-6">
+    <h1 className="text-2xl font-bold mb-4">Jihyung AI Dashboard 3.0</h1>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-2">Notes</h2>
+        <p className="text-3xl font-bold text-blue-600">{notes?.length || 0}</p>
+      </div>
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-2">Tasks</h2>
+        <p className="text-3xl font-bold text-green-600">{tasks?.length || 0}</p>
+      </div>
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-2">Events</h2>
+        <p className="text-3xl font-bold text-purple-600">{events?.length || 0}</p>
+      </div>
+    </div>
+  </div>
+)
 
 // 초월적 컴포넌트들 import
 import { ConsciousnessExpansionInterface } from './components/ConsciousnessExpansionInterface'
@@ -1666,8 +1687,30 @@ function SuperAISecondBrainApp() {
 
       setSuperAppState(prev => ({
         ...prev,
-        notes,
-        tasks,
+        notes: notes.map(note => ({
+          id: note.id.toString(),
+          title: note.title,
+          content: note.content,
+          tags: note.tags || [],
+          createdAt: note.created_at,
+          updatedAt: note.updated_at,
+          collaborators: [],
+          isEncrypted: false
+        })),
+        tasks: tasks.map(task => ({
+          id: task.id.toString(),
+          title: task.title,
+          description: task.description,
+          status: task.status as 'todo' | 'in-progress' | 'completed' | 'cancelled',
+          priority: task.priority,
+          dueDate: task.due_at,
+          tags: task.tags || [],
+          createdAt: task.created_at,
+          updatedAt: task.updated_at,
+          subtasks: [],
+          dependencies: [],
+          assignee: undefined
+        })),
         events,
         insights: analytics?.insights || [],
         projects: analytics?.projects || [],

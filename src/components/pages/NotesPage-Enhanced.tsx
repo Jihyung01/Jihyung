@@ -242,6 +242,72 @@ export const NotesPage: React.FC<NotesPageProps> = ({ onNoteCreated }) => {
     return Array.from(new Set(notes.flatMap(note => note.tags || [])));
   };
 
+  // Enhanced download function with AI analysis report
+  const enhancedDownloadNote = (note: Note) => {
+    try {
+      const aiInsights = generateAIInsights(note);
+      const content = `# ${note.title}\n\n${note.content}\n\n---\n\n## 📊 AI 분석 리포트\n${aiInsights}\n\n---\n작성일: ${note.created_at ? format(new Date(note.created_at), 'yyyy-MM-dd HH:mm') : '정보 없음'}\n수정일: ${note.updated_at ? format(new Date(note.updated_at), 'yyyy-MM-dd HH:mm') : '정보 없음'}\n태그: ${note.tags?.join(', ') || '태그 없음'}`;
+      
+      const blob = new Blob([content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${note.title.replace(/[^a-z0-9]/gi, '_')}_AI_Enhanced.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('AI 분석이 포함된 노트가 다운로드되었습니다!');
+    } catch (error) {
+      console.error('Failed to download note:', error);
+      toast.error('노트 다운로드에 실패했습니다');
+    }
+  };
+
+  // AI helper functions
+  const calculateAIRelevanceScore = (note: Note): number => {
+    let score = 0;
+    
+    // Content length factor
+    score += Math.min(note.content.length / 100, 10);
+    
+    // Tag diversity factor
+    score += (note.tags?.length || 0) * 2;
+    
+    // Recency factor
+    if (note.updated_at) {
+      const daysSinceUpdate = (Date.now() - new Date(note.updated_at).getTime()) / (1000 * 60 * 60 * 24);
+      score += Math.max(10 - daysSinceUpdate, 0);
+    }
+    
+    return score;
+  };
+
+  const generateAIInsights = (note: Note): string => {
+    const insights = [];
+    
+    if (note.content.length > 500) {
+      insights.push("📚 상세한 내용이 포함된 고품질 노트입니다.");
+    }
+    
+    if ((note.tags?.length || 0) > 3) {
+      insights.push("🏷️ 다양한 카테고리로 잘 분류된 노트입니다.");
+    }
+    
+    if (note.content.includes('TODO') || note.content.includes('할일')) {
+      insights.push("📝 실행 가능한 작업 아이템이 포함되어 있습니다.");
+    }
+    
+    if (note.updated_at) {
+      const daysSinceUpdate = (Date.now() - new Date(note.updated_at).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceUpdate < 1) {
+        insights.push("⚡ 최근에 활발하게 업데이트된 노트입니다.");
+      }
+    }
+    
+    return insights.length > 0 ? insights.join('\n') : "이 노트는 기본적인 내용을 포함하고 있습니다.";
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 dark:from-purple-950 dark:via-blue-950 dark:to-indigo-950 p-6">
@@ -648,8 +714,7 @@ export const NotesPage: React.FC<NotesPageProps> = ({ onNoteCreated }) => {
             </Card>
           </div>
         </motion.div>
-      </div>
-    </div>
+
         {/* Enhanced Create Note Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border border-white/20 dark:border-gray-700/30">
@@ -983,30 +1048,7 @@ export const NotesPage: React.FC<NotesPageProps> = ({ onNoteCreated }) => {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => {
-                    // Enhanced download with AI analysis
-                    const enhancedDownloadNote = (note: Note) => {
-                      try {
-                        const aiInsights = generateAIInsights(note);
-                        const content = `# ${note.title}\n\n${note.content}\n\n---\n\n## 📊 AI 분석 리포트\n${aiInsights}\n\n---\n작성일: ${note.created_at ? format(new Date(note.created_at), 'yyyy-MM-dd HH:mm') : '정보 없음'}\n수정일: ${note.updated_at ? format(new Date(note.updated_at), 'yyyy-MM-dd HH:mm') : '정보 없음'}\n태그: ${note.tags?.join(', ') || '태그 없음'}`;
-                        
-                        const blob = new Blob([content], { type: 'text/markdown' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${note.title.replace(/[^a-z0-9]/gi, '_')}_AI_Enhanced.md`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        toast.success('AI 분석이 포함된 노트가 다운로드되었습니다!');
-                      } catch (error) {
-                        console.error('Failed to download note:', error);
-                        toast.error('노트 다운로드에 실패했습니다');
-                      }
-                    };
-                    enhancedDownloadNote(viewingNote);
-                  }}
+                  onClick={() => enhancedDownloadNote(viewingNote)}
                   className="rounded-xl"
                 >
                   <Download className="h-4 w-4 mr-2" />
@@ -1026,70 +1068,4 @@ export const NotesPage: React.FC<NotesPageProps> = ({ onNoteCreated }) => {
       </div>
     </div>
   );
-
-  // Enhanced download function with AI analysis report
-  const enhancedDownloadNote = (note: Note) => {
-    try {
-      const aiInsights = generateAIInsights(note);
-      const content = `# ${note.title}\n\n${note.content}\n\n---\n\n## 📊 AI 분석 리포트\n${aiInsights}\n\n---\n작성일: ${note.created_at ? format(new Date(note.created_at), 'yyyy-MM-dd HH:mm') : '정보 없음'}\n수정일: ${note.updated_at ? format(new Date(note.updated_at), 'yyyy-MM-dd HH:mm') : '정보 없음'}\n태그: ${note.tags?.join(', ') || '태그 없음'}`;
-      
-      const blob = new Blob([content], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${note.title.replace(/[^a-z0-9]/gi, '_')}_AI_Enhanced.md`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('AI 분석이 포함된 노트가 다운로드되었습니다!');
-    } catch (error) {
-      console.error('Failed to download note:', error);
-      toast.error('노트 다운로드에 실패했습니다');
-    }
-  };
-
-  // AI helper functions
-  const calculateAIRelevanceScore = (note: Note): number => {
-    let score = 0;
-    
-    // Content length factor
-    score += Math.min(note.content.length / 100, 10);
-    
-    // Tag diversity factor
-    score += (note.tags?.length || 0) * 2;
-    
-    // Recency factor
-    if (note.updated_at) {
-      const daysSinceUpdate = (Date.now() - new Date(note.updated_at).getTime()) / (1000 * 60 * 60 * 24);
-      score += Math.max(10 - daysSinceUpdate, 0);
-    }
-    
-    return score;
-  };
-
-  const generateAIInsights = (note: Note): string => {
-    const insights = [];
-    
-    if (note.content.length > 500) {
-      insights.push("📚 상세한 내용이 포함된 고품질 노트입니다.");
-    }
-    
-    if ((note.tags?.length || 0) > 3) {
-      insights.push("🏷️ 다양한 카테고리로 잘 분류된 노트입니다.");
-    }
-    
-    if (note.content.includes('TODO') || note.content.includes('할일')) {
-      insights.push("📝 실행 가능한 작업 아이템이 포함되어 있습니다.");
-    }
-    
-    if (note.updated_at) {
-      const daysSinceUpdate = (Date.now() - new Date(note.updated_at).getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSinceUpdate < 1) {
-        insights.push("⚡ 최근에 활발하게 업데이트된 노트입니다.");
-      }
-    }
-    
-    return insights.length > 0 ? insights.join('\n') : "이 노트는 기본적인 내용을 포함하고 있습니다.";
-  };
 };

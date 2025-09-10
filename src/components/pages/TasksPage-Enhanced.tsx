@@ -567,20 +567,6 @@ export const TasksPage: React.FC<TasksPageProps> = ({ onTaskCreated }) => {
           </div>
         </CardContent>
       </Card>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="우선순위" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">모든 우선순위</SelectItem>
-                  <SelectItem value="high">높음</SelectItem>
-                  <SelectItem value="medium">보통</SelectItem>
-                  <SelectItem value="low">낮음</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* 작업 목록 */}
       <div className="space-y-3">
