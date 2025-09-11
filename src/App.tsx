@@ -2010,7 +2010,7 @@ function SuperAISecondBrainApp() {
             <div className="flex items-center gap-8">
               {([
                 { id: 'dashboard', icon: ChartLine, label: 'Dashboard' },
-                { id: 'notes', icon: File, label: 'Notes' },
+                { id: 'notes', icon: FileText, label: 'Notes' },
                 { id: 'tasks', icon: Target, label: 'Tasks' },
                 { id: 'calendar', icon: Calendar, label: 'Calendar' },
                 { id: 'projects', icon: Folder, label: 'Projects' },
