@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy, useRef, useCallback, createContext, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast, Toaster } from 'sonner'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { 
   Calendar, Target, FileText, Users, Settings, Brain, Home, BarChart3, 
   Zap, Sparkles, Bell, Search, LogOut, ChevronDown, Menu, X, Plus,

@@ -23,6 +23,9 @@ import SmartAIAssistant from './components/AI/SmartAIAssistant'
 import NotesPageUltraModern from './components/pages/NotesPage-UltraModern'
 import TasksPageUltraModern from './components/pages/TasksPage-UltraModern'
 
+// Import enhancedAPI
+import { enhancedAPI } from './lib/enhanced-api'
+
 // Temporary fallback dashboard
 const DashboardViewUltraModern = ({ notes, tasks, events, projects, stats }: any) => (
   <div className="p-6">
