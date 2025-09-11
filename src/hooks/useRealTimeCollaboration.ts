@@ -6,8 +6,11 @@ export function useRealTimeCollaboration(roomId: string) {
   const [isConnected, setIsConnected] = useState(false)
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:1234/${roomId}`)
-    wsRef.current = ws
+    // Only connect to WebSocket in development or if websocket server is available
+    if (import.meta.env.DEV || (typeof window !== 'undefined' && window.location.hostname === 'localhost')) {
+      try {
+        const ws = new WebSocket(`ws://localhost:1234/${roomId}`)
+        wsRef.current = ws
 
     ws.onopen = () => {
       setIsConnected(true)
@@ -30,13 +33,28 @@ export function useRealTimeCollaboration(roomId: string) {
       }
     }
 
-    ws.onclose = () => {
-      setIsConnected(false)
-      console.log('Disconnected from collaboration room')
-    }
+        ws.onclose = () => {
+          setIsConnected(false)
+          console.log('Disconnected from collaboration room')
+        }
 
-    return () => {
-      ws.close()
+        ws.onerror = () => {
+          setIsConnected(false)
+          console.log('WebSocket connection error')
+        }
+
+        return () => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close()
+          }
+        }
+      } catch (error) {
+        console.log('WebSocket connection failed:', error)
+        setIsConnected(false)
+      }
+    } else {
+      // In production, simulate offline collaboration
+      console.log('WebSocket not available in production environment')
     }
   }, [roomId])
 

@@ -54,7 +54,7 @@ export interface UseCollaborationReturn {
 export const useCollaboration = (options: UseCollaborationOptions): UseCollaborationReturn => {
   const {
     documentId,
-    serverUrl = 'ws://localhost:1234',
+    serverUrl = import.meta.env.DEV ? 'ws://localhost:1234' : null,
     autoConnect = true,
     onUserJoined,
     onUserLeft,

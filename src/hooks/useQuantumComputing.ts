@@ -188,7 +188,11 @@ export const useQuantumComputing = (): UseQuantumComputingReturn => {
         entangled: false
       }));
 
-      // Execute gates
+      // Execute gates - safely handle gates array
+      if (!circuit.gates || !Array.isArray(circuit.gates)) {
+        throw new Error('양자 회로 gates가 유효하지 않습니다.');
+      }
+      
       for (const gate of circuit.gates) {
         switch (gate.type) {
           case 'H': // Hadamard gate

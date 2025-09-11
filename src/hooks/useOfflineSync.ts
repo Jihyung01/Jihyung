@@ -1,5 +1,6 @@
 // src/hooks/useOfflineSync.ts
 import { useState, useEffect, useCallback } from 'react'
+import { openDB, IDBPDatabase } from 'idb'
 
 // Types for the database schema
 interface PendingSyncItem {
@@ -271,9 +272,12 @@ export const useOfflineSync = (): UseOfflineSyncReturn => {
 
   return {
     isOnline,
+    isOffline: !isOnline,
     pendingSync,
     saveForSync,
     syncPendingData,
+    syncData: syncPendingData, // alias for compatibility
+    quantumSync: syncPendingData, // quantum-enhanced sync alias
     cacheData,
     getCachedData,
     clearPendingSync,
