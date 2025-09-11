@@ -24,8 +24,6 @@ import SmartAIAssistant from './components/AI/SmartAIAssistant'
 import NotesPageUltraModern from './components/pages/NotesPage-UltraModern'
 import TasksPageUltraModern from './components/pages/TasksPage-UltraModern'
 
-// Import enhancedAPI
-import { enhancedAPI } from './lib/enhanced-api'
 
 // 초월적 컴포넌트들 import
 import { ConsciousnessExpansionInterface } from './components/ConsciousnessExpansionInterface'
@@ -1658,9 +1656,24 @@ function SuperAISecondBrainApp() {
         Promise.resolve({ id: 1, name: 'User', email: 'user@example.com' })
       ])
 
-      // Quantum data processing
-      if (superAppState.quantumProcessingEnabled) {
-        await processQuantum('data')
+      // Quantum data processing - skip if not properly initialized
+      if (superAppState.quantumProcessingEnabled && quantumEnabled) {
+        try {
+          // Create a simple quantum circuit for data processing simulation
+          const dataProcessingCircuit = {
+            id: 'data-processing',
+            name: 'Data Processing Circuit',
+            qubits: 3,
+            gates: [
+              { type: 'H' as const, target: 0 },
+              { type: 'CNOT' as const, target: 1, control: 0 }
+            ],
+            measurements: [0, 1, 2]
+          }
+          await processQuantum(dataProcessingCircuit)
+        } catch (quantumError) {
+          console.warn('Quantum processing failed, continuing without it:', quantumError)
+        }
       }
 
       setSuperAppState(prev => ({
@@ -1679,8 +1692,8 @@ function SuperAISecondBrainApp() {
           id: task.id.toString(),
           title: task.title,
           description: task.description,
-          status: task.status as 'todo' | 'in-progress' | 'completed' | 'cancelled',
-          priority: task.priority,
+          status: task.status === 'pending' ? 'todo' : task.status as 'in-progress' | 'completed' | 'cancelled',
+          priority: task.priority as 'low' | 'medium' | 'high' | 'urgent',
           dueDate: task.due_at,
           tags: task.tags || [],
           createdAt: task.created_at,
@@ -1689,7 +1702,21 @@ function SuperAISecondBrainApp() {
           dependencies: [],
           assignee: undefined
         })),
-        events,
+        events: events.map(event => ({
+          id: event.id.toString(),
+          title: event.title,
+          description: event.description,
+          startDate: event.start_at,
+          endDate: event.end_at,
+          isAllDay: false, // Default value as API doesn't provide this
+          location: event.location,
+          attendees: event.attendees || [],
+          reminders: [], // Default empty as API doesn't provide this
+          tags: [], // Default empty as API doesn't provide this
+          createdAt: event.created_at,
+          updatedAt: event.updated_at,
+          recurrence: undefined // Default as API doesn't provide this
+        })),
         insights: [],
         projects: [],
         teams: [],

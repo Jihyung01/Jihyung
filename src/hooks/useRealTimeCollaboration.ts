@@ -40,7 +40,8 @@ export function useRealTimeCollaboration(roomId: string) {
 
         ws.onerror = () => {
           setIsConnected(false)
-          console.log('WebSocket connection error')
+          // Silently handle WebSocket errors in development
+          console.warn('WebSocket connection failed - collaboration features disabled')
         }
 
         return () => {

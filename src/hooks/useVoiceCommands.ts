@@ -116,7 +116,7 @@ export const useVoiceCommands = (): UseVoiceCommandsReturn => {
         recognitionRef.current.abort();
       }
     };
-  }, [voiceCommands]);
+  }, []);
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && isSupported) {

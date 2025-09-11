@@ -78,7 +78,7 @@ export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) =
     }
     
     requestAnimationFrame(measureFPS)
-  }, [options])
+  }, [])
 
   const optimizePerformance = useCallback(() => {
     setIsOptimized(true)
