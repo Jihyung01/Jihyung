@@ -1,150 +1,234 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
-export interface GestureState {
+interface GestureState {
   isActive: boolean
-  startPos: { x: number; y: number }
-  currentPos: { x: number; y: number }
+  startX: number
+  startY: number
+  currentX: number
+  currentY: number
   deltaX: number
   deltaY: number
   distance: number
+  angle: number
   velocity: number
-  direction: 'up' | 'down' | 'left' | 'right' | null
 }
 
-export interface GestureHandlers {
-  onSwipe?: (direction: 'up' | 'down' | 'left' | 'right', velocity: number) => void
-  onPinch?: (scale: number, center: { x: number; y: number }) => void
-  onTap?: (position: { x: number; y: number }) => void
-  onLongPress?: (position: { x: number; y: number }) => void
-  onPan?: (delta: { x: number; y: number }, position: { x: number; y: number }) => void
+interface GestureOptions {
+  enableSwipe?: boolean
+  enablePinch?: boolean
+  enableRotate?: boolean
+  enablePan?: boolean
+  swipeThreshold?: number
+  pinchThreshold?: number
+  rotateThreshold?: number
 }
 
-export const useGestures = (handlers: GestureHandlers) => {
+interface GestureCallbacks {
+  onSwipeLeft?: () => void
+  onSwipeRight?: () => void
+  onSwipeUp?: () => void
+  onSwipeDown?: () => void
+  onPinchIn?: (scale: number) => void
+  onPinchOut?: (scale: number) => void
+  onRotate?: (angle: number) => void
+  onPan?: (deltaX: number, deltaY: number) => void
+  onTap?: (x: number, y: number) => void
+  onDoubleTap?: (x: number, y: number) => void
+  onLongPress?: (x: number, y: number) => void
+}
+
+export const useGestures = (
+  options: GestureOptions = {},
+  callbacks: GestureCallbacks = {}
+) => {
   const [gestureState, setGestureState] = useState<GestureState>({
     isActive: false,
-    startPos: { x: 0, y: 0 },
-    currentPos: { x: 0, y: 0 },
+    startX: 0,
+    startY: 0,
+    currentX: 0,
+    currentY: 0,
     deltaX: 0,
     deltaY: 0,
     distance: 0,
-    velocity: 0,
-    direction: null
+    angle: 0,
+    velocity: 0
   })
 
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastTouchTime = useRef<number>(0)
-  const touchStartTime = useRef<number>(0)
+  const [scale, setScale] = useState(1)
+  const [rotation, setRotation] = useState(0)
+  const gestureRef = useRef<HTMLElement>(null)
+  const tapTimeRef = useRef<number>(0)
+  const tapCountRef = useRef<number>(0)
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  const handleTouchStart = useCallback((event: TouchEvent) => {
-    const touch = event.touches[0]
-    const startTime = Date.now()
-    touchStartTime.current = startTime
+  const {
+    enableSwipe = true,
+    enablePinch = true,
+    enableRotate = true,
+    enablePan = true,
+    swipeThreshold = 50,
+    pinchThreshold = 0.1,
+    rotateThreshold = 5
+  } = options
 
+  const calculateDistance = useCallback((x1: number, y1: number, x2: number, y2: number) => {
+    return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
+  }, [])
+
+  const calculateAngle = useCallback((x1: number, y1: number, x2: number, y2: number) => {
+    return Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI
+  }, [])
+
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    e.preventDefault()
+    const touch = e.touches[0]
+    const currentTime = Date.now()
+    
     setGestureState(prev => ({
       ...prev,
       isActive: true,
-      startPos: { x: touch.clientX, y: touch.clientY },
-      currentPos: { x: touch.clientX, y: touch.clientY }
+      startX: touch.clientX,
+      startY: touch.clientY,
+      currentX: touch.clientX,
+      currentY: touch.clientY
     }))
 
-    // 롱프레스 감지
-    timeoutRef.current = setTimeout(() => {
-      handlers.onLongPress?.({ x: touch.clientX, y: touch.clientY })
+    // 롱 프레스 감지
+    longPressTimerRef.current = setTimeout(() => {
+      callbacks.onLongPress?.(touch.clientX, touch.clientY)
     }, 500)
-  }, [handlers])
 
-  const handleTouchMove = useCallback((event: TouchEvent) => {
-    if (!gestureState.isActive) return
-
-    const touch = event.touches[0]
-    const deltaX = touch.clientX - gestureState.startPos.x
-    const deltaY = touch.clientY - gestureState.startPos.y
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
-
-    setGestureState(prev => ({
-      ...prev,
-      currentPos: { x: touch.clientX, y: touch.clientY },
-      deltaX,
-      deltaY,
-      distance
-    }))
-
-    // 팬 제스처
-    handlers.onPan?.({ x: deltaX, y: deltaY }, { x: touch.clientX, y: touch.clientY })
-
-    // 롱프레스 취소 (움직임 감지시)
-    if (distance > 10 && timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
-  }, [gestureState, handlers])
-
-  const handleTouchEnd = useCallback((event: TouchEvent) => {
-    if (!gestureState.isActive) return
-
-    const endTime = Date.now()
-    const duration = endTime - touchStartTime.current
-    const velocity = gestureState.distance / duration
-
-    // 방향 계산
-    let direction: 'up' | 'down' | 'left' | 'right' | null = null
-    if (Math.abs(gestureState.deltaX) > Math.abs(gestureState.deltaY)) {
-      direction = gestureState.deltaX > 0 ? 'right' : 'left'
+    // 더블 탭 감지
+    if (currentTime - tapTimeRef.current < 300) {
+      tapCountRef.current += 1
+      if (tapCountRef.current === 2) {
+        callbacks.onDoubleTap?.(touch.clientX, touch.clientY)
+        tapCountRef.current = 0
+      }
     } else {
-      direction = gestureState.deltaY > 0 ? 'down' : 'up'
+      tapCountRef.current = 1
+    }
+    tapTimeRef.current = currentTime
+  }, [callbacks])
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    e.preventDefault()
+    const touch = e.touches[0]
+    
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
     }
 
-    setGestureState(prev => ({
-      ...prev,
-      velocity,
-      direction
-    }))
+    setGestureState(prev => {
+      const deltaX = touch.clientX - prev.startX
+      const deltaY = touch.clientY - prev.startY
+      const distance = calculateDistance(prev.startX, prev.startY, touch.clientX, touch.clientY)
+      const angle = calculateAngle(prev.startX, prev.startY, touch.clientX, touch.clientY)
+      const velocity = distance / (Date.now() - tapTimeRef.current)
 
-    // 스와이프 감지 (거리와 속도 기준)
-    if (gestureState.distance > 50 && velocity > 0.3) {
-      handlers.onSwipe?.(direction, velocity)
+      // 핀치 제스처 (멀티터치)
+      if (enablePinch && e.touches.length === 2) {
+        const touch1 = e.touches[0]
+        const touch2 = e.touches[1]
+        const currentDistance = calculateDistance(
+          touch1.clientX, touch1.clientY,
+          touch2.clientX, touch2.clientY
+        )
+        
+        if (prev.distance > 0) {
+          const scaleChange = currentDistance / prev.distance
+          setScale(prevScale => {
+            const newScale = prevScale * scaleChange
+            if (scaleChange > 1 + pinchThreshold) {
+              callbacks.onPinchOut?.(newScale)
+            } else if (scaleChange < 1 - pinchThreshold) {
+              callbacks.onPinchIn?.(newScale)
+            }
+            return newScale
+          })
+        }
+
+        return {
+          ...prev,
+          currentX: touch.clientX,
+          currentY: touch.clientY,
+          deltaX,
+          deltaY,
+          distance: currentDistance,
+          angle,
+          velocity
+        }
+      }
+
+      // 패닝
+      if (enablePan) {
+        callbacks.onPan?.(deltaX, deltaY)
+      }
+
+      return {
+        ...prev,
+        currentX: touch.clientX,
+        currentY: touch.clientY,
+        deltaX,
+        deltaY,
+        distance,
+        angle,
+        velocity
+      }
+    })
+  }, [callbacks, calculateDistance, calculateAngle, enablePinch, enablePan, pinchThreshold])
+
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    e.preventDefault()
+    
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
     }
-    // 탭 감지 (짧은 시간, 짧은 거리)
-    else if (duration < 200 && gestureState.distance < 10) {
-      handlers.onTap?.(gestureState.currentPos)
+
+    setGestureState(prev => {
+      // 스와이프 감지
+      if (enableSwipe && prev.distance > swipeThreshold) {
+        const angle = prev.angle
+        if (angle > -45 && angle < 45) {
+          callbacks.onSwipeRight?.()
+        } else if (angle > 45 && angle < 135) {
+          callbacks.onSwipeDown?.()
+        } else if (angle > 135 || angle < -135) {
+          callbacks.onSwipeLeft?.()
+        } else if (angle > -135 && angle < -45) {
+          callbacks.onSwipeUp?.()
+        }
+      }
+
+      // 단일 탭 (더블 탭이 아닌 경우)
+      if (prev.distance < 10 && tapCountRef.current === 1) {
+        setTimeout(() => {
+          if (tapCountRef.current === 1) {
+            callbacks.onTap?.(prev.currentX, prev.currentY)
+          }
+        }, 300)
+      }
+
+      return {
+        ...prev,
+        isActive: false
+      }
+    })
+  }, [callbacks, enableSwipe, swipeThreshold])
+
+  const bind = useCallback(() => {
+    return {
+      onTouchStart: handleTouchStart,
+      onTouchMove: handleTouchMove,
+      onTouchEnd: handleTouchEnd,
+      style: { touchAction: 'none' }
     }
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd])
 
-    // 상태 리셋
-    setGestureState(prev => ({
-      ...prev,
-      isActive: false,
-      deltaX: 0,
-      deltaY: 0,
-      distance: 0,
-      velocity: 0,
-      direction: null
-    }))
+  useEffect(() => {
+    const element = gestureRef.current
+    if (!element) return
 
-    // 롱프레스 타이머 정리
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
-  }, [gestureState, handlers])
-
-  // 핀치 제스처 처리
-  const handleTouchStartPinch = useCallback((event: TouchEvent) => {
-    if (event.touches.length === 2) {
-      const touch1 = event.touches[0]
-      const touch2 = event.touches[1]
-      const distance = Math.sqrt(
-        Math.pow(touch2.clientX - touch1.clientX, 2) + 
-        Math.pow(touch2.clientY - touch1.clientY, 2)
-      )
-      // 핀치 시작 거리 저장
-    }
-  }, [])
-
-  const gestureHandlers = {
-    onTouchStart: handleTouchStart,
-    onTouchMove: handleTouchMove,
-    onTouchEnd: handleTouchEnd,
-  }
-
-  const enableGestures = useCallback((element: HTMLElement) => {
     element.addEventListener('touchstart', handleTouchStart, { passive: false })
     element.addEventListener('touchmove', handleTouchMove, { passive: false })
     element.addEventListener('touchend', handleTouchEnd, { passive: false })
@@ -158,7 +242,9 @@ export const useGestures = (handlers: GestureHandlers) => {
 
   return {
     gestureState,
-    gestureHandlers,
-    enableGestures
+    scale,
+    rotation,
+    bind,
+    ref: gestureRef
   }
 }

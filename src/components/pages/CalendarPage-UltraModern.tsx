@@ -79,90 +79,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
     }
   };
 
-  const createEvent = async () => {
-    try {
-      if (!newEvent.title.trim()) {
-        toast.error('제목을 입력해주세요');
-        return;
-      }
-
-      let startDateTime, endDateTime;
-      
-      if (newEvent.is_all_day) {
-        startDateTime = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-        endDateTime = startDateTime;
-      } else {
-        if (!newEvent.start_time || !newEvent.end_time) {
-          toast.error('시작 시간과 종료 시간을 입력해주세요');
-          return;
-        }
-        
-        const baseDate = selectedDate || new Date();
-        startDateTime = `${format(baseDate, 'yyyy-MM-dd')}T${newEvent.start_time}:00`;
-        endDateTime = `${format(baseDate, 'yyyy-MM-dd')}T${newEvent.end_time}:00`;
-      }
-
-      const eventData = {
-        title: newEvent.title,
-        description: newEvent.description,
-        start_time: startDateTime,
-        end_time: endDateTime,
-        location: newEvent.location,
-        participants: newEvent.participants ? newEvent.participants.split(',').map(p => p.trim()) : [],
-        category: newEvent.category,
-        color: newEvent.color,
-        is_all_day: newEvent.is_all_day,
-        reminder_minutes: newEvent.reminder_minutes
-      };
-
-      console.log('Creating event with data:', eventData);
-      const result = await enhancedAPI.createCalendarEvent(eventData);
-      
-      // 태스크로도 생성하는 경우
-      if (newEvent.create_as_task) {
-        const taskData = {
-          title: newEvent.title,
-          description: newEvent.description,
-          due_date: startDateTime,
-          priority: 'medium' as const,
-          category: newEvent.category,
-          status: 'pending' as const
-        };
-        
-        try {
-          const taskResult = await enhancedAPI.createTask(taskData);
-          onTaskCreated?.(taskResult);
-          toast.success('일정과 태스크가 함께 생성되었습니다! 🎯');
-        } catch (taskError) {
-          console.error('Failed to create task:', taskError);
-          toast.success('일정이 생성되었습니다! (태스크 생성 실패) ✨');
-        }
-      } else {
-        toast.success('일정이 성공적으로 생성되었습니다! ✨');
-      }
-
-      onEventCreated?.(result);
-      
-      setNewEvent({
-        title: '',
-        description: '',
-        start_time: '',
-        end_time: '',
-        location: '',
-        participants: '',
-        category: 'work',
-        color: 'blue',
-        is_all_day: false,
-        reminder_minutes: 15,
-        create_as_task: false
-      });
-      setShowCreateDialog(false);
-      await loadEvents();
-    } catch (error) {
-      console.error('Failed to create event:', error);
-      toast.error('일정 생성에 실패했습니다: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    }
-  };
 
   const createQuickEvent = async () => {
     try {
@@ -207,11 +123,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
     setQuickEvent({ ...quickEvent, title: '' });
     setShowQuickCreateDialog(true);
   };
-      toast.error('이벤트를 불러오는데 실패했습니다');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const createEvent = async () => {
     try {
@@ -231,7 +142,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
         start_time: newEvent.start_time,
         end_time: newEvent.end_time || newEvent.start_time,
         location: newEvent.location,
-        attendees: newEvent.attendees ? newEvent.attendees.split(',').map(email => email.trim()) : [],
+        attendees: newEvent.participants ? newEvent.participants.split(',').map(email => email.trim()) : [],
         color: newEvent.color
       };
 
@@ -244,7 +155,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
         start_time: '',
         end_time: '',
         location: '',
-        attendees: '',
+        participants: '',
         color: '#3b82f6'
       });
       setShowCreateDialog(false);
@@ -885,8 +796,8 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
                 <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">참석자 (이메일, 쉼표로 구분)</Label>
                 <Input
                   placeholder="email1@example.com, email2@example.com"
-                  value={newEvent.attendees}
-                  onChange={(e) => setNewEvent(prev => ({ ...prev, attendees: e.target.value }))}
+                  value={newEvent.participants}
+                  onChange={(e) => setNewEvent(prev => ({ ...prev, participants: e.target.value }))}
                   className="bg-white/80 dark:bg-gray-800/80 border-white/30 dark:border-gray-600/30 rounded-xl focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
                 />
               </div>

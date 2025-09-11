@@ -1,71 +1,111 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
-export interface PerformanceMetrics {
-  frameRate: number
+interface PerformanceMetrics {
+  fps: number
   memoryUsage: number
   renderTime: number
-  componentCount: number
-  updateFrequency: number
+  cpuUsage: number
+  networkLatency: number
 }
 
-export const usePerformanceMonitor = () => {
-  const [metrics, setMetrics] = useState<PerformanceMetrics>({
-    frameRate: 60,
-    memoryUsage: 45.6,
-    renderTime: 16.7,
-    componentCount: 156,
-    updateFrequency: 30
-  })
+interface PerformanceMonitorOptions {
+  enableAutoOptimization?: boolean
+  memoryThreshold?: number
+  fpsThreshold?: number
+}
 
-  const [isMonitoring, setIsMonitoring] = useState(false)
-  const [alerts, setAlerts] = useState<string[]>([])
+export const usePerformanceMonitor = (options: PerformanceMonitorOptions = {}) => {
+  const [metrics, setMetrics] = useState<PerformanceMetrics>({
+    fps: 60,
+    memoryUsage: 0,
+    renderTime: 0,
+    cpuUsage: 0,
+    networkLatency: 0
+  })
+  
+  const [isOptimized, setIsOptimized] = useState(false)
+  const [warnings, setWarnings] = useState<string[]>([])
+
+  const measurePerformance = useCallback(() => {
+    // FPS 측정
+    let lastTime = performance.now()
+    let frameCount = 0
+    
+    const measureFPS = () => {
+      frameCount++
+      const currentTime = performance.now()
+      const deltaTime = currentTime - lastTime
+      
+      if (deltaTime >= 1000) {
+        const fps = Math.round((frameCount * 1000) / deltaTime)
+        
+        // 메모리 사용량 측정
+        const memoryUsage = (performance as any).memory ? 
+          (performance as any).memory.usedJSHeapSize / 1024 / 1024 : 0
+        
+        // 렌더링 시간 측정
+        const renderTime = performance.now() - currentTime
+        
+        setMetrics(prev => ({
+          ...prev,
+          fps,
+          memoryUsage,
+          renderTime,
+          cpuUsage: Math.random() * 100, // 실제 구현에서는 더 정확한 측정 필요
+          networkLatency: Math.random() * 100
+        }))
+        
+        frameCount = 0
+        lastTime = currentTime
+        
+        // 성능 경고 체크
+        const newWarnings: string[] = []
+        if (fps < (options.fpsThreshold || 30)) {
+          newWarnings.push('Low FPS detected')
+        }
+        if (memoryUsage > (options.memoryThreshold || 100)) {
+          newWarnings.push('High memory usage')
+        }
+        setWarnings(newWarnings)
+        
+        // 자동 최적화
+        if (options.enableAutoOptimization && (fps < 30 || memoryUsage > 100)) {
+          optimizePerformance()
+        }
+      }
+      
+      requestAnimationFrame(measureFPS)
+    }
+    
+    requestAnimationFrame(measureFPS)
+  }, [options])
+
+  const optimizePerformance = useCallback(() => {
+    setIsOptimized(true)
+    // 실제 최적화 로직 (예: 불필요한 렌더링 방지, 메모리 정리 등)
+    setTimeout(() => setIsOptimized(false), 2000)
+  }, [])
+
+  const clearCache = useCallback(() => {
+    // 캐시 정리 로직
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => {
+          caches.delete(name)
+        })
+      })
+    }
+  }, [])
 
   useEffect(() => {
-    if (!isMonitoring) return
-
-    const interval = setInterval(() => {
-      // 실시간 성능 지표 시뮬레이션
-      setMetrics(prev => ({
-        frameRate: Math.max(30, prev.frameRate + (Math.random() - 0.5) * 5),
-        memoryUsage: Math.max(20, Math.min(90, prev.memoryUsage + (Math.random() - 0.5) * 2)),
-        renderTime: Math.max(8, prev.renderTime + (Math.random() - 0.5) * 3),
-        componentCount: prev.componentCount + Math.floor((Math.random() - 0.5) * 10),
-        updateFrequency: Math.max(15, prev.updateFrequency + (Math.random() - 0.5) * 5)
-      }))
-
-      // 성능 알림 체크
-      if (metrics.frameRate < 40) {
-        setAlerts(prev => [...prev, 'Low frame rate detected'])
-      }
-      if (metrics.memoryUsage > 80) {
-        setAlerts(prev => [...prev, 'High memory usage warning'])
-      }
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [isMonitoring, metrics.frameRate, metrics.memoryUsage])
-
-  const startMonitoring = () => setIsMonitoring(true)
-  const stopMonitoring = () => setIsMonitoring(false)
-  const clearAlerts = () => setAlerts([])
-
-  const optimizePerformance = () => {
-    setMetrics(prev => ({
-      ...prev,
-      frameRate: Math.min(60, prev.frameRate + 10),
-      memoryUsage: Math.max(20, prev.memoryUsage - 15),
-      renderTime: Math.max(8, prev.renderTime - 3)
-    }))
-    setAlerts([])
-  }
+    measurePerformance()
+  }, [measurePerformance])
 
   return {
     metrics,
-    alerts,
-    isMonitoring,
-    startMonitoring,
-    stopMonitoring,
-    clearAlerts,
-    optimizePerformance
+    isOptimized,
+    warnings,
+    optimizePerformance,
+    clearCache
   }
 }

@@ -228,3 +228,5 @@ export function MagicCapture({ onCapture }: MagicCaptureProps) {
     </Card>
   )
 }
+
+export default MagicCapture

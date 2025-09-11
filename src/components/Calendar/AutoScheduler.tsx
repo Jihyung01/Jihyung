@@ -137,3 +137,5 @@ export function AutoScheduler({ tasks, events, onSchedule, onScheduleCreated }: 
     </Card>
   )
 }
+
+export default AutoScheduler

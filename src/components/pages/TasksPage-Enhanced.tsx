@@ -61,6 +61,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({ onTaskCreated }) => {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [dueDateFilter, setDueDateFilter] = useState<string>('all'); // today, tomorrow, this_week, overdue
   const [sortBy, setSortBy] = useState<string>('updated_desc'); // created_asc, created_desc, priority, due_date
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'kanban'>('grid');
   const [showCompleted, setShowCompleted] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -317,6 +318,34 @@ export const TasksPage: React.FC<TasksPageProps> = ({ onTaskCreated }) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="h-8 px-3"
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="h-8 px-3"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              className="h-8 px-3"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+          </div>
+          
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
               <Button className="gap-2">
