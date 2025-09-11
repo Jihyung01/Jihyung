@@ -41,7 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
 import { toast } from 'sonner';
-import enhancedAPI, { type Note, type Task, type CalendarEvent } from '@/lib/enhanced-api.ts';
+import { enhancedAPI, type Note, type Task, type CalendarEvent } from '../../lib/enhanced-api';
 
 interface Message {
   id: string;
@@ -182,8 +182,8 @@ export const SmartAIAssistant: React.FC<SmartAIAssistantProps> = ({
         tasksCount: tasks.length,
         eventsCount: events.length,
         recentNotes: notes.slice(0, 3).map(n => ({ title: n.title, content: n.content?.slice(0, 100) })),
-        todayTasks: tasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === new Date().toDateString()),
-        todayEvents: events.filter(e => new Date(e.start_time).toDateString() === new Date().toDateString())
+        todayTasks: tasks.filter(t => t.due_at && new Date(t.due_at).toDateString() === new Date().toDateString()),
+        todayEvents: events.filter(e => new Date(e.start_at).toDateString() === new Date().toDateString())
       };
 
       const response = await enhancedAPI.chatWithAI(input, JSON.stringify(contextData));
@@ -299,7 +299,7 @@ export const SmartAIAssistant: React.FC<SmartAIAssistantProps> = ({
       actions.push({
         label: '새 일정 만들기',
         action: () => {
-          onEventCreate({ title: '새 일정', start_time: new Date().toISOString() });
+          onEventCreate({ title: '새 일정', start_at: new Date().toISOString() });
           toast.success('새 일정 생성 화면으로 이동합니다');
         },
         icon: <Calendar className="h-4 w-4" />

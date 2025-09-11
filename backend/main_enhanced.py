@@ -2428,9 +2428,22 @@ async def get_calendar_events(
 ):
     """Get calendar events for a specific date range"""
     try:
+        # Handle undefined or invalid date parameters
+        if from_date == 'undefined' or from_date is None:
+            from_date = datetime.now(timezone.utc).isoformat()
+        if to_date == 'undefined' or to_date is None:
+            to_date = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+            
         # Parse date parameters
-        start_date = datetime.fromisoformat(from_date)
-        end_date = datetime.fromisoformat(to_date)
+        try:
+            start_date = datetime.fromisoformat(from_date.replace('Z', '+00:00'))
+        except ValueError:
+            start_date = datetime.now(timezone.utc)
+            
+        try:
+            end_date = datetime.fromisoformat(to_date.replace('Z', '+00:00'))
+        except ValueError:
+            end_date = datetime.now(timezone.utc) + timedelta(days=30)
         
         logger.info(f"📅 Getting calendar events from {start_date} to {end_date} for user {current_user['id']}")
         
@@ -5505,7 +5518,27 @@ Summary:"""
 async def ai_generate_tasks(description: dict, current_user: dict = Depends(get_current_user)):
     """AI-powered task generation from descriptions"""
     if not OPENAI_API_KEY:
-        raise HTTPException(status_code=503, detail="OpenAI service not available")
+        # Mock response when OpenAI API is not available
+        logger.info("OpenAI API key not available, returning mock task generation")
+        mock_tasks = [
+            {
+                "title": f"분석: {description.get('description', 'Task')[:50]}",
+                "description": "AI 기능을 위해 OpenAI API 키가 필요합니다. 현재는 데모 태스크입니다.",
+                "priority": "medium",
+                "estimated_duration": 30,
+                "category": "AI Generated",
+                "urgency_score": 5
+            },
+            {
+                "title": "OpenAI API 키 설정",
+                "description": "AI 기능을 사용하려면 OpenAI API 키를 환경 변수에 설정해주세요.",
+                "priority": "high", 
+                "estimated_duration": 15,
+                "category": "Setup",
+                "urgency_score": 7
+            }
+        ]
+        return {"tasks": mock_tasks}
     
     try:
         client = openai.OpenAI(api_key=OPENAI_API_KEY)

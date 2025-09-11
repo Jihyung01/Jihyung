@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { Progress } from './ui/progress';
+import { Separator } from './ui/separator';
 import { 
   Brain,
   Calendar,
@@ -49,7 +49,7 @@ import { format, isToday, isTomorrow, isThisWeek, startOfWeek, endOfWeek, addDay
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
 import enhancedAPI, { type Note, type Task, type CalendarEvent } from '@/lib/enhanced-api.ts';
-import SmartAIAssistant from '@/components/AI/SmartAIAssistant';
+import SmartAIAssistant from './AI/SmartAIAssistant';
 
 interface DashboardViewProps {
   onNavigate?: (page: string) => void;
@@ -119,7 +119,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const stats = {
     totalTasks: tasks.length,
     completedTasks: tasks.filter(t => t.status === 'completed').length,
-    todayTasks: tasks.filter(t => t.due_date && isToday(new Date(t.due_date))).length,
+    todayTasks: tasks.filter(t => t.due_at && isToday(new Date(t.due_at))).length,
     totalNotes: notes.length,
     totalEvents: events.length,
     todayEvents: events.filter(e => isToday(new Date(e.start_time))).length,
@@ -127,7 +127,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     productivity: Math.round((tasks.filter(t => t.status === 'completed').length / Math.max(tasks.length, 1)) * 100)
   };
 
-  const todayTasks = tasks.filter(t => t.due_date && isToday(new Date(t.due_date))).slice(0, 5);
+  const todayTasks = tasks.filter(t => t.due_at && isToday(new Date(t.due_at))).slice(0, 5);
   const todayEvents = events.filter(e => isToday(new Date(e.start_time))).slice(0, 3);
   const recentNotes = notes.slice(0, 4);
 

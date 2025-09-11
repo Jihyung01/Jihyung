@@ -39,12 +39,14 @@ import {
   Activity,
   Sparkles,
   Flame,
-  Brain
+  Brain,
+  Paperclip
 } from 'lucide-react';
 import { format, formatDistanceToNow, isPast, isToday, isTomorrow, isThisWeek } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
 import enhancedAPI, { type Task } from '@/lib/enhanced-api.ts';
+import { FileUpload } from '../ui/file-upload';
 
 interface TasksPageProps {
   onTaskCreated?: (task: Task) => void;
@@ -70,7 +72,13 @@ export const TasksPage: React.FC<TasksPageProps> = ({ onTaskCreated }) => {
     description: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
     energy: 5,
-    due_at: ''
+    due_at: '',
+    location: '',
+    category: 'work',
+    add_to_calendar: false,
+    attendees: '',
+    estimated_duration: 60, // minutes
+    files: [] as any[]
   });
 
   const loadTasks = async () => {
@@ -99,22 +107,58 @@ export const TasksPage: React.FC<TasksPageProps> = ({ onTaskCreated }) => {
         description: newTask.description,
         priority: newTask.priority,
         energy: newTask.energy,
-        due_at: newTask.due_at || null
+        due_at: newTask.due_at || null,
+        location: newTask.location,
+        category: newTask.category
       };
 
       const result = await enhancedAPI.createTask(taskData);
       onTaskCreated?.(result);
+      
+      // 캘린더에도 추가하는 경우
+      if (newTask.add_to_calendar && newTask.due_at) {
+        try {
+          const endDateTime = new Date(newTask.due_at);
+          endDateTime.setMinutes(endDateTime.getMinutes() + newTask.estimated_duration);
+          
+          const eventData = {
+            title: `📋 ${newTask.title}`,
+            description: `작업: ${newTask.description}\n\n예상 소요시간: ${newTask.estimated_duration}분`,
+            start_at: newTask.due_at,
+            end_at: endDateTime.toISOString(),
+            location: newTask.location,
+            attendees: newTask.attendees ? newTask.attendees.split(',').map(a => a.trim()) : [],
+            type: 'task',
+            priority: newTask.priority,
+            user_id: 1,
+            task_id: result.id
+          };
+          
+          await enhancedAPI.createCalendarEvent(eventData);
+          toast.success('작업이 생성되고 캘린더에 추가되었습니다! 🎯📅');
+        } catch (calendarError) {
+          console.error('Failed to add to calendar:', calendarError);
+          toast.success('작업이 생성되었습니다! (캘린더 추가 실패) 🎯');
+        }
+      } else {
+        toast.success('새 작업이 생성되었습니다! 🎯');
+      }
       
       setNewTask({
         title: '',
         description: '',
         priority: 'medium',
         energy: 5,
-        due_at: ''
+        due_at: '',
+        location: '',
+        category: 'work',
+        add_to_calendar: false,
+        attendees: '',
+        estimated_duration: 60,
+        files: []
       });
       setShowCreateDialog(false);
       await loadTasks();
-      toast.success('새 작업이 생성되었습니다! 🎯');
     } catch (error) {
       console.error('Failed to create task:', error);
       toast.error('작업 생성에 실패했습니다');
@@ -870,6 +914,91 @@ export const TasksPage: React.FC<TasksPageProps> = ({ onTaskCreated }) => {
                   onChange={(e) => setNewTask(prev => ({ ...prev, due_at: e.target.value }))}
                   className="bg-white/80 dark:bg-gray-800/80 border-white/30 dark:border-gray-600/30 rounded-xl focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
                 />
+              </div>
+
+              {/* 고급 기능들 */}
+              <div className="space-y-4 p-4 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-900/10 dark:to-purple-900/10 rounded-xl border border-white/20 dark:border-gray-600/20">
+                <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  고급 설정
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">카테고리</Label>
+                    <Select value={newTask.category} onValueChange={(value) => setNewTask(prev => ({ ...prev, category: value }))}>
+                      <SelectTrigger className="bg-white/80 dark:bg-gray-800/80 border-white/30 dark:border-gray-600/30 rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="work">업무</SelectItem>
+                        <SelectItem value="personal">개인</SelectItem>
+                        <SelectItem value="study">학습</SelectItem>
+                        <SelectItem value="health">건강</SelectItem>
+                        <SelectItem value="meeting">회의</SelectItem>
+                        <SelectItem value="project">프로젝트</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">예상 소요시간 (분)</Label>
+                    <Input
+                      type="number"
+                      min="15"
+                      max="480"
+                      step="15"
+                      value={newTask.estimated_duration}
+                      onChange={(e) => setNewTask(prev => ({ ...prev, estimated_duration: parseInt(e.target.value) || 60 }))}
+                      className="bg-white/80 dark:bg-gray-800/80 border-white/30 dark:border-gray-600/30 rounded-xl focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">장소</Label>
+                  <Input
+                    placeholder="회의실, 카페, 온라인 등..."
+                    value={newTask.location}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, location: e.target.value }))}
+                    className="bg-white/80 dark:bg-gray-800/80 border-white/30 dark:border-gray-600/30 rounded-xl focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">참석자 (이메일, 쉼표로 구분)</Label>
+                  <Input
+                    placeholder="user1@example.com, user2@example.com"
+                    value={newTask.attendees}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, attendees: e.target.value }))}
+                    className="bg-white/80 dark:bg-gray-800/80 border-white/30 dark:border-gray-600/30 rounded-xl focus:ring-2 focus:ring-indigo-500/20 transition-all duration-300"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-white/60 dark:bg-gray-800/60 rounded-xl border border-white/30 dark:border-gray-600/30">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">📅 캘린더에 추가</Label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">마감일이 있을 때 캘린더 일정으로도 생성</p>
+                  </div>
+                  <Switch
+                    checked={newTask.add_to_calendar}
+                    onCheckedChange={(checked) => setNewTask(prev => ({ ...prev, add_to_calendar: checked }))}
+                    disabled={!newTask.due_at}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <Paperclip className="h-4 w-4" />
+                    파일 첨부
+                  </Label>
+                  <FileUpload
+                    onFilesChange={(files) => setNewTask(prev => ({ ...prev, files }))}
+                    maxFiles={3}
+                    maxSize={5}
+                    className="w-full"
+                  />
+                </div>
               </div>
             </div>
 

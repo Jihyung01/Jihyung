@@ -27,6 +27,7 @@ export interface Task {
   priority: 'low' | 'medium' | 'high';
   energy: number;
   due_at?: string;
+  due_date?: string; // Keep for backward compatibility
   completed_at?: string;
   created_at: string;
   updated_at: string;
@@ -46,8 +47,12 @@ export interface CalendarEvent {
   description?: string;
   start_at: string;
   end_at: string;
+  start?: string; // For backward compatibility
+  end?: string; // For backward compatibility
+  due_at?: string; // For task conversion
   location?: string;
   attendees?: string[];
+  color?: string;
   created_at: string;
   updated_at: string;
   user_id: number;
@@ -114,11 +119,11 @@ export const enhancedAPI = {
         content_type: "markdown", // Fixed string, not optional
         type: "note", // Fixed string, not optional
         tags: data.tags || [],
-        folder: data.folder || null,
-        color: data.color || null,
+        folder: data.folder || undefined,  // null 대신 undefined 사용
+        color: data.color || undefined,   // null 대신 undefined 사용
         is_pinned: data.is_pinned || false,
-        template_id: null,
-        parent_note_id: null
+        template_id: undefined,  // null 대신 undefined 사용
+        parent_note_id: undefined  // null 대신 undefined 사용
       };
       
       console.log('Enhanced API: Sending formatted note data:', noteCreateData);
@@ -217,17 +222,17 @@ export const enhancedAPI = {
         due_at: data.due_at,
         due_date: data.due_at, // Map for backward compatibility
         all_day: true, // Default to all day
-        reminder_date: null,
-        estimated_duration: null,
-        assignee: null,
-        project_id: data.project_id || null,
-        parent_task_id: data.parent_id || null,
+        reminder_date: undefined,  // null 대신 undefined 사용
+        estimated_duration: undefined,  // null 대신 undefined 사용
+        assignee: undefined,  // null 대신 undefined 사용
+        project_id: data.project_id ? String(data.project_id) : undefined,  // 문자열로 변환하고 null 대신 undefined 사용
+        parent_task_id: data.parent_id ? String(data.parent_id) : undefined,  // 문자열로 변환하고 null 대신 undefined 사용
         tags: data.tags || [],
-        category: null,
-        location: null,
+        category: undefined,  // null 대신 undefined 사용
+        location: undefined,  // null 대신 undefined 사용
         energy_level: 'medium', // Default energy level
         context_tags: [],
-        recurrence_rule: null
+        recurrence_rule: undefined  // null 대신 undefined 사용
       };
       
       console.log('Enhanced API: Sending formatted task data:', taskCreateData);
@@ -288,10 +293,26 @@ export const enhancedAPI = {
   },
 
   // Calendar
-  async getCalendarEvents(from: string, to: string): Promise<CalendarEvent[]> {
+  async getCalendarEvents(from?: string, to?: string): Promise<CalendarEvent[]> {
     try {
+      // Validate and provide default dates if undefined
+      let fromDate = from;
+      let toDate = to;
+      
+      if (!fromDate || fromDate === 'undefined' || fromDate === 'null') {
+        const now = new Date();
+        fromDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      }
+      
+      if (!toDate || toDate === 'undefined' || toDate === 'null') {
+        const now = new Date();
+        toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+      }
+      
+      console.log('Getting calendar events from:', fromDate, 'to:', toDate);
+      
       // Use the correct API endpoint that the backend provides
-      const events = await api.getCalendarEvents(from, to) || [];
+      const events = await api.getCalendarEvents(fromDate, toDate) || [];
       // Map API response to frontend interface, handling both task and event formats
       return events.map(event => ({
         id: parseInt(event.id) || Date.now(),
@@ -312,7 +333,14 @@ export const enhancedAPI = {
     }
   },
 
-  async createCalendarEvent(data: Partial<CalendarEvent>): Promise<CalendarEvent> {
+  async createCalendarEvent(data: Partial<CalendarEvent> & {
+    start_time?: string;
+    end_time?: string;
+    is_all_day?: boolean;
+    participants?: string[];
+    reminder_minutes?: number;
+    category?: string;
+  }): Promise<CalendarEvent> {
     try {
       console.log('Enhanced API: Creating calendar event with data:', data);
       
@@ -321,31 +349,53 @@ export const enhancedAPI = {
         throw new Error('Event title is required');
       }
       
+      // Get start time from various possible fields
+      const startTime = data.start_at || data.start || data.start_time || data.due_at;
+      if (!startTime || startTime === 'undefined' || startTime === null) {
+        throw new Error('Event start time is required');
+      }
+      
+      // Ensure we have valid ISO datetime strings
+      let formattedStart: string;
+      let formattedEnd: string;
+      
+      try {
+        const startDate = new Date(startTime);
+        if (isNaN(startDate.getTime())) {
+          throw new Error('Invalid start date format');
+        }
+        formattedStart = startDate.toISOString();
+        
+        // Set end time (default to 1 hour after start if not provided)
+        const endTime = data.end_at || data.end || data.end_time || startTime;
+        const endDate = new Date(endTime);
+        if (isNaN(endDate.getTime())) {
+          // If end date is invalid, set it to 1 hour after start
+          endDate.setTime(startDate.getTime() + (60 * 60 * 1000));
+        }
+        formattedEnd = endDate.toISOString();
+        
+      } catch (error) {
+        throw new Error('Invalid date format provided');
+      }
+      
       // Format data according to backend CalendarEventCreate model expectations
       const eventCreateData = {
         title: data.title.trim(),
         description: data.description || '',
-        start: data.start_at || '',
-        end: data.end_at || data.start_at || '',
-        all_day: false, // Default to not all day for events
-        timezone: 'UTC', // Default timezone
-        color: undefined,
+        start: formattedStart,
+        end: formattedEnd,
+        all_day: data.is_all_day || false,
+        timezone: 'UTC',
+        color: data.color || undefined,
         location: data.location || '',
         meeting_url: undefined,
-        event_type: 'event', // Default event type
+        event_type: 'event',
         recurrence_rule: undefined,
-        reminder_minutes: [],
-        attendees: {},
-        visibility: 'private' // Default visibility
+        reminder_minutes: data.reminder_minutes ? [data.reminder_minutes] : [],
+        attendees: data.participants ? data.participants.reduce((acc, p, i) => ({ ...acc, [i]: p }), {}) : {},
+        visibility: 'private'
       };
-      
-      // Ensure start and end times are provided
-      if (!eventCreateData.start) {
-        throw new Error('Event start time is required');
-      }
-      if (!eventCreateData.end) {
-        eventCreateData.end = eventCreateData.start;
-      }
       
       console.log('Enhanced API: Sending formatted event data:', eventCreateData);
       
@@ -796,6 +846,27 @@ export const enhancedAPI = {
 
   async applyTimeBlocks(blocks: any[]): Promise<{ created: any[] }> {
     return { created: [] };
+  },
+
+  // AI Chat
+  async chatWithAI(message: string, context?: string): Promise<{ response: string; suggestions?: string[] }> {
+    try {
+      console.log('Sending AI chat request:', { message, context });
+      const result = await api.postJSON<{ response: string; suggestions?: string[] }>('/api/ai/chat', { 
+        message, 
+        context: context || '{}',
+        mode: 'chat'
+      });
+      console.log('AI chat response:', result);
+      return result;
+    } catch (error) {
+      console.error('Failed to chat with AI:', error);
+      // Fallback response when API fails
+      return {
+        response: `안녕하세요! "${message}"에 대해 답변드리겠습니다. 현재 AI 서비스가 일시적으로 제한되어 있어 기본 응답을 제공합니다. 곧 정상 서비스로 복구될 예정입니다.`,
+        suggestions: ['더 구체적으로 질문해보세요', '다른 주제로 대화해보세요', '잠시 후 다시 시도해보세요']
+      };
+    }
   },
 
   // Health Check

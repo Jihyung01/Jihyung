@@ -23,6 +23,7 @@ import DashboardViewUltraModern from './components/DashboardView-UltraModern'
 import SmartAIAssistant from './components/AI/SmartAIAssistant'
 import NotesPageUltraModern from './components/pages/NotesPage-UltraModern'
 import TasksPageUltraModern from './components/pages/TasksPage-UltraModern'
+import { CollaborationPage } from './components/pages/CollaborationPage'
 
 
 // 초월적 컴포넌트들 import
@@ -2164,7 +2165,13 @@ function SuperAISecondBrainApp() {
                 )}
 
                 {superAppState.currentPage === 'collaboration' && (
-                  <CollaborationWorkspace />
+                  <CollaborationPage 
+                    currentUser={{
+                      id: '1',
+                      name: 'User',
+                      email: 'user@example.com'
+                    }}
+                  />
                 )}
 
                 {superAppState.currentPage === 'quantum' && (

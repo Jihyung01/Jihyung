@@ -206,8 +206,13 @@ export const search = (query: string, filters?: Record<string, any>) =>
   postJSON<{ results: any[]; total: number }>('/search', { query, filters })
 
 // Calendar
-export const getCalendarEvents = (from: string, to: string) =>
-  getJSON<any[]>(`/calendar?from=${from}&to=${to}`)
+export const getCalendarEvents = (from: string, to: string) => {
+  // Ensure parameters are valid before making request
+  const fromParam = from && from !== 'undefined' ? from : new Date().toISOString();
+  const toParam = to && to !== 'undefined' ? to : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  
+  return getJSON<any[]>(`/calendar?from=${fromParam}&to=${toParam}`);
+}
 
 export const createCalendarEvent = (event: {
   title: string
@@ -224,7 +229,7 @@ export const createCalendarEvent = (event: {
   reminder_minutes?: number[]
   attendees?: Record<string, any>
   visibility?: string
-}) => postJSON<any>('/events', event)
+}) => postJSON<any>('/calendar', event)
 
 export const updateCalendarEvent = (id: number, event: Partial<{
   title: string

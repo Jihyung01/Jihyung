@@ -53,6 +53,7 @@ import {
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
 import enhancedAPI, { type CalendarEvent, type Task } from '@/lib/enhanced-api.ts';
+import { FileUpload } from '../ui/file-upload';
 
 interface CalendarPageProps {
   onEventCreated?: (event: CalendarEvent) => void;
@@ -86,7 +87,8 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
     color: 'blue',
     is_all_day: false,
     reminder_minutes: 15,
-    create_as_task: false
+    create_as_task: false,
+    files: [] as any[]
   });
 
   // Quick create 상태
@@ -144,14 +146,13 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
       const eventData = {
         title: newEvent.title,
         description: newEvent.description,
-        start_time: startDateTime,
-        end_time: endDateTime,
+        start_at: startDateTime,
+        end_at: endDateTime,
         location: newEvent.location,
-        participants: newEvent.participants ? newEvent.participants.split(',').map(p => p.trim()) : [],
-        category: newEvent.category,
-        color: newEvent.color,
-        is_all_day: newEvent.is_all_day,
-        reminder_minutes: newEvent.reminder_minutes
+        attendees: newEvent.participants ? newEvent.participants.split(',').map(p => p.trim()) : [],
+        type: newEvent.category,
+        priority: 'medium' as const,
+        user_id: 1 // Default user ID
       };
 
       console.log('Creating event with data:', eventData);
@@ -193,7 +194,8 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
         color: 'blue',
         is_all_day: false,
         reminder_minutes: 15,
-        create_as_task: false
+        create_as_task: false,
+        files: []
       });
       setShowCreateDialog(false);
       await loadEvents();
@@ -217,14 +219,13 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
       const eventData = {
         title: quickEvent.title,
         description: '',
-        start_time: startDateTime,
-        end_time: endDateTime,
+        start_at: startDateTime,
+        end_at: endDateTime,
         location: '',
-        participants: [],
-        category: 'personal',
-        color: 'blue',
-        is_all_day: false,
-        reminder_minutes: 15
+        attendees: [],
+        type: 'personal',
+        priority: 'medium' as const,
+        user_id: 1 // Default user ID
       };
 
       const result = await enhancedAPI.createCalendarEvent(eventData);
