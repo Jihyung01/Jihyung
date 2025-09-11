@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { House, File, Calendar as CalendarIcon, Target, Users } from '@phosphor-icons/react'
+import { House, File as FileIcon, Calendar as CalendarIcon, Target, Users } from '@phosphor-icons/react'
 import { Button } from './ui/button'
 import { cn } from '@/lib/utils'
 
@@ -11,7 +11,7 @@ interface RouterProps {
 export function Router({ currentPage, onNavigate }: RouterProps) {
   const navItems = [
     { id: 'dashboard', label: '대시보드', icon: House },
-    { id: 'notes', label: '노트', icon: File },
+    { id: 'notes', label: '노트', icon: FileIcon },
     { id: 'tasks', label: '태스크', icon: Target },
     { id: 'calendar', label: '캘린더', icon: CalendarIcon },
     { id: 'collaboration', label: '협업', icon: Users },

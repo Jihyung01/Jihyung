@@ -8,9 +8,18 @@ import { ErrorFallback } from './ErrorFallback.tsx'
 import "./main.css"
 import "./index.css"
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root')
+if (!root) {
+  throw new Error('Root element not found')
+}
+
+// Ensure File constructor is properly available
+if (typeof window !== 'undefined' && !window.File) {
+  console.warn('File constructor not available')
+}
+
+createRoot(root).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
     <App />
-  {/* <Toaster position="top-right" /> */}
   </ErrorBoundary>
 )
