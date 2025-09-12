@@ -21,7 +21,14 @@ import {
   Clock,
   Brain,
   Sparkles,
-  Zap
+  Zap,
+  Search,
+  Filter,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Shield,
+  Globe
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -70,13 +77,17 @@ interface CollaborationPageProps {
   };
 }
 
-export const CollaborationPage: React.FC<CollaborationPageProps> = ({ currentUser }) => {
+export const CollaborationPage: React.FC<CollaborationPageProps> = ({ 
+  currentUser = { id: 'user-1', name: '사용자', email: 'user@example.com' } 
+}) => {
   const [activeRoom, setActiveRoom] = useState<MeetingRoom | null>(null);
   const [inCall, setInCall] = useState(false);
   const [rooms, setRooms] = useState<MeetingRoom[]>([]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [connectedParticipants, setConnectedParticipants] = useState<Participant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Create room form state
   const [newRoom, setNewRoom] = useState({
@@ -141,8 +152,28 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({ currentUse
 
   useEffect(() => {
     // Load rooms (mock data for now)
-    setRooms(mockRooms);
+    const loadRooms = async () => {
+      try {
+        setLoading(true);
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setRooms(mockRooms);
+      } catch (error) {
+        console.error('Failed to load rooms:', error);
+        toast.error('회의실을 불러올 수 없습니다');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadRooms();
   }, []);
+  
+  // Filter rooms based on search
+  const filteredRooms = rooms.filter(room =>
+    room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    room.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const createRoom = async () => {
     try {
@@ -290,41 +321,68 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({ currentUse
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20">
       <div className="max-w-7xl mx-auto p-6">
-        {/* Header */}
+        {/* Enhanced Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                협업 공간 🚀
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                팀과 함께 실시간으로 협업하고 소통하세요
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Button 
-                onClick={() => setShowJoinDialog(true)}
-                variant="outline"
-                className="gap-2"
-              >
-                <Link className="h-4 w-4" />
-                링크로 참여
-              </Button>
-              
-              <Button 
-                onClick={() => setShowCreateDialog(true)}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                새 회의실 생성
-              </Button>
-            </div>
-          </div>
+          <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/20 dark:border-gray-700/30 shadow-xl">
+            <CardContent className="p-6">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <motion.div 
+                    className="p-3 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl text-white shadow-lg"
+                    whileHover={{ scale: 1.05, rotate: 5 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <Users className="h-6 w-6" />
+                  </motion.div>
+                  <div>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
+                      협업 공간
+                    </h1>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                      팀과 함께 실시간으로 협업하고 소통하세요 • 총 {rooms.length}개 회의실
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="회의실 검색..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 w-64 bg-white/80 dark:bg-gray-700/80 border-white/30 dark:border-gray-600/30 rounded-xl"
+                    />
+                  </div>
+                  
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button 
+                      onClick={() => setShowJoinDialog(true)}
+                      variant="outline"
+                      className="gap-2 bg-white/60 dark:bg-gray-700/60 border-white/30 dark:border-gray-600/30 rounded-xl"
+                    >
+                      <Link className="h-4 w-4" />
+                      링크로 참여
+                    </Button>
+                  </motion.div>
+                  
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button 
+                      onClick={() => setShowCreateDialog(true)}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 gap-2 rounded-xl shadow-lg"
+                    >
+                      <Plus className="h-4 w-4" />
+                      새 회의실 생성
+                    </Button>
+                  </motion.div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Active Room */}
@@ -391,124 +449,272 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({ currentUse
           </motion.div>
         )}
 
+        {/* Loading State */}
+        {loading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <motion.div
+                key={index}
+                className="h-64 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-gray-700/20"
+                animate={{ opacity: [0.4, 0.8, 0.4] }}
+                transition={{ repeat: Infinity, duration: 1.5, delay: index * 0.1 }}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Meeting Rooms Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {rooms.map((room, index) => (
-            <motion.div
-              key={room.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Card className="hover:shadow-lg transition-all duration-300 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-white/20 dark:border-gray-700/20">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {room.name}
-                      </CardTitle>
-                      {room.description && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {room.description}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-1 ml-2">
-                      {room.settings.allowScreenShare && <Monitor className="h-4 w-4 text-blue-500" />}
-                      {room.settings.allowChat && <MessageSquare className="h-4 w-4 text-green-500" />}
-                      {room.settings.requireApproval && <Settings className="h-4 w-4 text-orange-500" />}
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent>
-                  <div className="space-y-4">
-                    {/* Participants */}
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {room.participants.length}/{room.maxParticipants}명
-                      </span>
-                      
-                      {room.participants.length > 0 && (
-                        <div className="flex -space-x-2 ml-2">
-                          {room.participants.slice(0, 3).map(participant => (
-                            <div
-                              key={participant.id}
-                              className="w-6 h-6 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-xs font-medium text-white border-2 border-white dark:border-gray-800"
-                              title={participant.name}
-                            >
-                              {participant.name.charAt(0).toUpperCase()}
+        {!loading && (
+          <>
+            {searchQuery && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4"
+              >
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <Search className="h-4 w-4" />
+                  <span>"{searchQuery}"에 대한 검색 결과 ({filteredRooms.length}개)</span>
+                </div>
+              </motion.div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredRooms.map((room, index) => (
+                <motion.div
+                  key={room.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ y: -5 }}
+                  className="group"
+                >
+                  <Card className="hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/20 dark:border-gray-700/20 rounded-2xl overflow-hidden group-hover:border-blue-200 dark:group-hover:border-blue-700"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            joinRoom(room.id);
+                          }
+                        }}
+                        aria-label={`회의실: ${room.name}, ${room.participants.length}명 참여 중`}
+                  >
+                    <CardHeader className="bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-800 dark:to-blue-900/20 pb-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                              {room.name}
+                            </CardTitle>
+                            {room.participants.length > 0 && (
+                              <motion.div 
+                                className="flex items-center gap-1"
+                                animate={{ scale: [1, 1.1, 1] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                              >
+                                <div className="w-2 h-2 bg-green-500 rounded-full" />
+                                <span className="text-xs text-green-600 dark:text-green-400 font-medium">활성</span>
+                              </motion.div>
+                            )}
+                          </div>
+                          {room.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                              {room.description}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2 ml-3">
+                          {room.settings.allowScreenShare && (
+                            <div className="p-1 bg-blue-100 dark:bg-blue-900/50 rounded" title="화면 공유 가능">
+                              <Monitor className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                             </div>
-                          ))}
-                          {room.participants.length > 3 && (
-                            <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center text-xs font-medium text-white border-2 border-white dark:border-gray-800">
-                              +{room.participants.length - 3}
+                          )}
+                          {room.settings.allowChat && (
+                            <div className="p-1 bg-green-100 dark:bg-green-900/50 rounded" title="채팅 가능">
+                              <MessageSquare className="h-3 w-3 text-green-600 dark:text-green-400" />
+                            </div>
+                          )}
+                          {room.settings.requireApproval && (
+                            <div className="p-1 bg-orange-100 dark:bg-orange-900/50 rounded" title="승인 필요">
+                              <Shield className="h-3 w-3 text-orange-600 dark:text-orange-400" />
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Schedule */}
-                    {room.scheduledFor && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {new Date(room.scheduledFor).toLocaleString('ko-KR')}
-                        </span>
                       </div>
-                    )}
+                    </CardHeader>
+                
+                    <CardContent className="p-6">
+                      <div className="space-y-4">
+                        {/* Participants */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-gray-500" />
+                            <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                              {room.participants.length}/{room.maxParticipants}명 참여
+                            </span>
+                            
+                            {room.participants.length > 0 && (
+                              <div className="flex -space-x-2 ml-2">
+                                {room.participants.slice(0, 3).map((participant, idx) => (
+                                  <motion.div
+                                    key={participant.id}
+                                    className="w-7 h-7 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-xs font-semibold text-white border-2 border-white dark:border-gray-800 shadow-sm"
+                                    title={`${participant.name} (${participant.role === 'host' ? '호스트' : '참가자'})`}
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ delay: idx * 0.1 }}
+                                  >
+                                    {participant.name.charAt(0).toUpperCase()}
+                                    {participant.role === 'host' && (
+                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full flex items-center justify-center">
+                                        <span className="text-[8px]">👑</span>
+                                      </div>
+                                    )}
+                                  </motion.div>
+                                ))}
+                                {room.participants.length > 3 && (
+                                  <div className="w-7 h-7 bg-gray-400 rounded-full flex items-center justify-center text-xs font-semibold text-white border-2 border-white dark:border-gray-800 shadow-sm">
+                                    +{room.participants.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {room.participants.length >= room.maxParticipants && (
+                            <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+                              만석
+                            </Badge>
+                          )}
+                        </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 pt-2">
-                      <Button
-                        onClick={() => joinRoom(room.id)}
-                        className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                        disabled={room.participants.length >= room.maxParticipants}
-                      >
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        참여
-                      </Button>
-                      
-                      <Button
-                        onClick={() => shareRoom(room)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Share className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
+                        {/* Schedule */}
+                        {room.scheduledFor && (
+                          <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                              {new Date(room.scheduledFor).toLocaleString('ko-KR', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })} 예정
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Room Status */}
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <Globe className="h-3 w-3" />
+                          <span>
+                            {new Date(room.createdAt).toLocaleDateString('ko-KR')} 생성
+                          </span>
+                          {room.isRecording && (
+                            <>
+                              <span>•</span>
+                              <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                <span>녹화 중</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Enhanced Actions */}
+                        <div className="flex items-center gap-2 pt-2">
+                          <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                joinRoom(room.id);
+                              }}
+                              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-lg transition-all duration-300"
+                              disabled={room.participants.length >= room.maxParticipants}
+                            >
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              {room.participants.length >= room.maxParticipants ? '만석' : '참여하기'}
+                            </Button>
+                          </motion.div>
+                          
+                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                shareRoom(room);
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl border-blue-200 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                              title="회의실 공유"
+                            >
+                              <Share className="h-4 w-4" />
+                            </Button>
+                          </motion.div>
+                        </div>
+                      </div>
+                    </CardContent>
               </Card>
             </motion.div>
           ))}
         </div>
 
-        {/* Empty State */}
-        {rooms.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-20"
-          >
-            <Video className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              생성된 회의실이 없습니다
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
-              새로운 회의실을 만들어 팀 협업을 시작해보세요
-            </p>
-            <Button
-              onClick={() => setShowCreateDialog(true)}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              첫 번째 회의실 생성
-            </Button>
-          </motion.div>
+            {/* No Search Results */}
+            {searchQuery && filteredRooms.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-20"
+              >
+                <Search className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  검색 결과가 없습니다
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                  "{searchQuery}"에 해당하는 회의실을 찾을 수 없습니다
+                </p>
+                <Button
+                  onClick={() => setSearchQuery('')}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  검색 초기화
+                </Button>
+              </motion.div>
+            )}
+
+            {/* Empty State */}
+            {!searchQuery && filteredRooms.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-20"
+              >
+                <motion.div
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                >
+                  <Video className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                </motion.div>
+                <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  생성된 회의실이 없습니다
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                  새로운 회의실을 만들어 팀 협업을 시작해보세요
+                </p>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    onClick={() => setShowCreateDialog(true)}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 gap-2 rounded-xl shadow-lg"
+                  >
+                    <Plus className="h-4 w-4" />
+                    첫 번째 회의실 생성
+                  </Button>
+                </motion.div>
+              </motion.div>
+            )}
+          </>
         )}
 
         {/* Create Room Dialog */}

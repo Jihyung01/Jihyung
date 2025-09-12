@@ -43,13 +43,15 @@ import {
   Award,
   Coffee,
   Sun,
-  Moon
+  Moon,
+  X
 } from 'lucide-react';
 import { format, isToday, isTomorrow, isThisWeek, startOfWeek, endOfWeek, addDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { toast } from 'sonner';
 import enhancedAPI, { type Note, type Task, type CalendarEvent } from '@/lib/enhanced-api.ts';
 import SmartAIAssistant from './AI/SmartAIAssistant';
+import { WeatherWidget } from './ui/WeatherWidget';
 
 interface DashboardViewProps {
   onNavigate?: (page: string) => void;
@@ -589,11 +591,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </Card>
             </motion.div>
 
-            {/* Collaboration Quick Access */}
+            {/* Weather Widget */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
+            >
+              <WeatherWidget className="shadow-xl" />
+            </motion.div>
+
+            {/* Collaboration Quick Access */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
             >
               <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/20 dark:border-gray-700/30 shadow-xl rounded-2xl overflow-hidden">
                 <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950 dark:to-blue-950 pb-4">
@@ -669,7 +680,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
             >
               <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950 dark:to-orange-950 border-yellow-200 dark:border-yellow-800 shadow-xl rounded-2xl overflow-hidden">
                 <CardHeader className="pb-4">

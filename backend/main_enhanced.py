@@ -1841,12 +1841,28 @@ async def update_note(note_id: str, note_data: NoteCreate, current_user: dict = 
         
         # Fallback to memory storage
         if not updated_cloud:
-            if 'notes' not in memory_storage or note_id not in memory_storage['notes']:
-                raise HTTPException(status_code=404, detail="Note not found")
+            # Convert UUID to string for memory storage lookup
+            note_key = str(note_id)
             
-            note = memory_storage['notes'][note_id]
-            if note['user_id'] != user_id:
-                raise HTTPException(status_code=403, detail="Not authorized")
+            # Look in both global and user-specific storage
+            note_found = False
+            note = None
+            
+            if 'notes' in memory_storage and note_key in memory_storage['notes']:
+                note = memory_storage['notes'][note_key]
+                if str(note['user_id']) == str(user_id):
+                    note_found = True
+            
+            # Also check user-specific notes
+            if not note_found and 'user_notes' in memory_storage and str(user_id) in memory_storage['user_notes']:
+                for i, stored_note in enumerate(memory_storage['user_notes'][str(user_id)]):
+                    if str(stored_note.get('id')) == note_key:
+                        note = stored_note
+                        note_found = True
+                        break
+            
+            if not note_found or not note:
+                raise HTTPException(status_code=404, detail="Note not found")
             
             # Update note in memory
             note.update({
@@ -1967,16 +1983,30 @@ async def delete_note(note_id: str, current_user: dict = Depends(get_current_use
         
         # Fallback to memory storage
         if not deleted_from_cloud:
-            if 'notes' not in memory_storage or note_id not in memory_storage['notes']:
+            # Convert UUID to string for memory storage lookup
+            note_key = str(note_id)
+            
+            # Look in both global and user-specific storage
+            note_found = False
+            if 'notes' in memory_storage and note_key in memory_storage['notes']:
+                note = memory_storage['notes'][note_key]
+                if str(note['user_id']) == str(user_id):
+                    note['is_archived'] = True
+                    note['updated_at'] = datetime.utcnow()
+                    note_found = True
+            
+            # Also check user-specific notes
+            if not note_found and 'user_notes' in memory_storage and str(user_id) in memory_storage['user_notes']:
+                for i, note in enumerate(memory_storage['user_notes'][str(user_id)]):
+                    if str(note.get('id')) == note_key:
+                        note['is_archived'] = True
+                        note['updated_at'] = datetime.utcnow()
+                        note_found = True
+                        break
+            
+            if not note_found:
                 raise HTTPException(status_code=404, detail="Note not found")
-            
-            note = memory_storage['notes'][note_id]
-            if note['user_id'] != user_id:
-                raise HTTPException(status_code=403, detail="Not authorized")
-            
-            # Archive note (soft delete)
-            note['is_archived'] = True
-            note['updated_at'] = datetime.utcnow()
+                
             logger.info(f"✅ Note {note_id} archived in memory")
         
         # Send real-time update
@@ -4506,9 +4536,31 @@ async def create_calendar_event(
         logger.info(f"📅 Creating calendar event for user {current_user['id']}")
         logger.info(f"Event data received: {event_data}")
         
-        # Parse datetime strings
-        start_time = datetime.fromisoformat(event_data['start_time'].replace('Z', '+00:00'))
-        end_time = datetime.fromisoformat(event_data['end_time'].replace('Z', '+00:00'))
+        # Parse datetime strings - handle both field name formats
+        start_str = event_data.get('start_time') or event_data.get('start') or event_data.get('start_at')
+        end_str = event_data.get('end_time') or event_data.get('end') or event_data.get('end_at')
+        
+        if not start_str:
+            raise HTTPException(status_code=400, detail="Start time is required")
+        if not end_str:
+            raise HTTPException(status_code=400, detail="End time is required")
+            
+        # Handle timezone parsing more robustly
+        try:
+            if 'T' in start_str:
+                start_time = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+            else:
+                # Handle date-only format
+                start_time = datetime.fromisoformat(f"{start_str}T00:00:00+00:00")
+                
+            if 'T' in end_str:
+                end_time = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
+            else:
+                # Handle date-only format
+                end_time = datetime.fromisoformat(f"{end_str}T23:59:59+00:00")
+        except ValueError as e:
+            logger.error(f"Failed to parse datetime: start='{start_str}', end='{end_str}', error={e}")
+            raise HTTPException(status_code=400, detail=f"Invalid datetime format: {str(e)}")
         
         if USE_MEMORY_STORAGE:
             # Create event in memory storage
