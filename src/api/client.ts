@@ -140,10 +140,10 @@ export const createNote = (note: {
   parent_note_id?: string;
 }) => postJSON<any>('/notes', note)
 
-export const updateNote = (id: number, note: Partial<{ title: string; content: string; tags: string[] }>) =>
+export const updateNote = (id: string | number, note: Partial<{ title: string; content: string; tags: string[] }>) =>
   putJSON<any>(`/notes/${id}`, note)
 
-export const deleteNote = (id: number) => deleteJSON<void>(`/notes/${id}`)
+export const deleteNote = (id: string | number) => deleteJSON<void>(`/notes/${id}`)
 
 // Tasks API
 export const listTasks = (from?: string, to?: string) => {
@@ -291,6 +291,22 @@ export async function uploadFile(file: File, endpoint: string = '/upload'): Prom
 // Audio transcription
 export const transcribeAudio = (file: File) => uploadFile(file, '/transcribe')
 
+// AI Chat
+export const chatWithAI = (message: string, context?: string, mode?: string) =>
+  postJSON<{ response: string; suggestions?: string[]; model?: string }>('/ai/chat', { 
+    message, 
+    context: context || '{}',
+    mode: mode || 'chat'
+  })
+
+// AI Insights  
+export const getAIInsights = (data: any) =>
+  postJSON<{ insights: any[] }>('/ai/insights', data)
+
+// AI Summarize
+export const aiSummarize = (content: string, type?: string) =>
+  postJSON<{ summary: string }>('/ai/summarize', { content, type })
+
 export default {
   healthCheck,
   listNotes,
@@ -315,5 +331,8 @@ export default {
   getDailyBrief,
   getWeeklyReview,
   uploadFile,
-  transcribeAudio
+  transcribeAudio,
+  chatWithAI,
+  getAIInsights,
+  aiSummarize
 }

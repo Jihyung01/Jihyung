@@ -263,12 +263,12 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
       for (let i = 0; i < 7; i++) {
         const cloneDay = day;
         const dayEvents = events.filter(event => {
-          const eventDate = new Date(event.start_time);
-          return isSameDay(eventDate, cloneDay);
+          const eventDate = new Date(event.start_at || event.start || '');
+          return eventDate && !isNaN(eventDate.getTime()) && isSameDay(eventDate, cloneDay);
         });
         
         const dayTasks = tasks.filter(task => {
-          return task.due_date && isSameDay(new Date(task.due_date), cloneDay);
+          return task.due_at && isSameDay(new Date(task.due_at), cloneDay);
         });
 
         days.push(

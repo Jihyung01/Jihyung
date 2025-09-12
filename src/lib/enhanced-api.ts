@@ -139,16 +139,39 @@ export const enhancedAPI = {
     }
   },
 
-  async updateNote(id: number, data: Partial<Note>): Promise<Note> {
-    return await api.updateNote(id, {
-      title: data.title,
-      content: data.content,
-      tags: data.tags
-    });
+  async updateNote(id: string | number, data: Partial<Note>): Promise<Note> {
+    try {
+      console.log('Enhanced API: Updating note with id:', id, 'data:', data);
+      
+      // Validate required fields
+      if (!data.title || data.title.trim() === '') {
+        throw new Error('Note title is required');
+      }
+      
+      const updateData = {
+        title: data.title.trim(),
+        content: data.content || '',
+        tags: data.tags || []
+      };
+      
+      const result = await api.updateNote(id, updateData);
+      console.log('Enhanced API: Note updated successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('Enhanced API updateNote error:', error);
+      throw new Error(`Failed to update note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   },
 
-  async deleteNote(id: number): Promise<void> {
-    return await api.deleteNote(id);
+  async deleteNote(id: string | number): Promise<void> {
+    try {
+      console.log('Enhanced API: Deleting note with id:', id);
+      await api.deleteNote(id);
+      console.log('Enhanced API: Note deleted successfully');
+    } catch (error) {
+      console.error('Enhanced API deleteNote error:', error);
+      throw new Error(`Failed to delete note: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   },
 
   async getRecentNotes(limit = 10): Promise<Note[]> {
@@ -851,16 +874,12 @@ export const enhancedAPI = {
   // AI Chat
   async chatWithAI(message: string, context?: string): Promise<{ response: string; suggestions?: string[] }> {
     try {
-      console.log('Sending AI chat request:', { message, context });
-      const result = await api.postJSON<{ response: string; suggestions?: string[] }>('/api/ai/chat', { 
-        message, 
-        context: context || '{}',
-        mode: 'chat'
-      });
-      console.log('AI chat response:', result);
+      console.log('Enhanced API: Sending AI chat request:', { message, context });
+      const result = await api.chatWithAI(message, context, 'chat');
+      console.log('Enhanced API: AI chat response:', result);
       return result;
     } catch (error) {
-      console.error('Failed to chat with AI:', error);
+      console.error('Enhanced API: Failed to chat with AI:', error);
       // Fallback response when API fails
       return {
         response: `안녕하세요! "${message}"에 대해 답변드리겠습니다. 현재 AI 서비스가 일시적으로 제한되어 있어 기본 응답을 제공합니다. 곧 정상 서비스로 복구될 예정입니다.`,

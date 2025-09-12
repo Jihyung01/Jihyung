@@ -25,6 +25,9 @@ import NotesPageUltraModern from './components/pages/NotesPage-UltraModern'
 import TasksPageUltraModern from './components/pages/TasksPage-UltraModern'
 import { CollaborationPage } from './components/pages/CollaborationPage'
 
+// 새로 추가된 협업 및 PIP 컴포넌트들
+import SharedWorkspace from './components/collaboration/SharedWorkspace'
+import { PIPManager, MiniVideoCallPIP, MiniNotesPIP } from './components/ui/PictureInPicture'
 
 // 초월적 컴포넌트들 import
 import { ConsciousnessExpansionInterface } from './components/ConsciousnessExpansionInterface'
@@ -1368,6 +1371,11 @@ interface SuperUIState {
   isChakraAlignerOpen: boolean
   isAuraVisualizerOpen: boolean
   isPsychicPowersActive: boolean
+  isSharedWorkspaceOpen: boolean
+  isPipManagerActive: boolean
+  activePipWindows: string[]
+  isVideoCallPipActive: boolean
+  isNotesPipActive: boolean
   selectedNoteId: number | null
   selectedTaskId: number | null
   selectedProjectId: number | null
@@ -1577,6 +1585,11 @@ function SuperAISecondBrainApp() {
     isChakraAlignerOpen: false,
     isAuraVisualizerOpen: false,
     isPsychicPowersActive: false,
+    isSharedWorkspaceOpen: false,
+    isPipManagerActive: false,
+    activePipWindows: [],
+    isVideoCallPipActive: false,
+    isNotesPipActive: false,
     selectedNoteId: null,
     selectedTaskId: null,
     selectedProjectId: null,
@@ -2165,13 +2178,30 @@ function SuperAISecondBrainApp() {
                 )}
 
                 {superAppState.currentPage === 'collaboration' && (
-                  <CollaborationPage 
-                    currentUser={{
-                      id: '1',
-                      name: 'User',
-                      email: 'user@example.com'
-                    }}
-                  />
+                  <>
+                    {!superUIState.isSharedWorkspaceOpen ? (
+                      <CollaborationPage 
+                        currentUser={{
+                          id: '1',
+                          name: 'User',
+                          email: 'user@example.com'
+                        }}
+                      />
+                    ) : (
+                      <SharedWorkspace
+                        currentUser={{
+                          id: '1',
+                          name: 'User',
+                          email: 'user@example.com'
+                        }}
+                        documentId="shared-doc-1"
+                        onDocumentChange={(doc) => {
+                          // Handle document changes
+                          console.log('Document updated:', doc);
+                        }}
+                      />
+                    )}
+                  </>
                 )}
 
                 {superAppState.currentPage === 'quantum' && (
@@ -2414,6 +2444,51 @@ function SuperAISecondBrainApp() {
             </Button>
           </motion.div>
         )}
+
+        {/* Picture-in-Picture Manager */}
+        <PIPManager maxWindows={5}>
+          <div>
+            {/* Video Call PIP */}
+            {superUIState.isVideoCallPipActive && (
+              <MiniVideoCallPIP
+                roomId="current-room"
+                participants={[
+                  { id: '1', name: 'You' },
+                  { id: '2', name: 'Collaborator' }
+                ]}
+                onExpand={() => {
+                  setSuperUIState(prev => ({ 
+                    ...prev, 
+                    currentPage: 'collaboration',
+                    isVideoCallPipActive: false 
+                  }))
+                }}
+                onClose={() => {
+                  setSuperUIState(prev => ({ ...prev, isVideoCallPipActive: false }))
+                }}
+              />
+            )}
+
+            {/* Notes PIP */}
+            {superUIState.isNotesPipActive && superUIState.selectedNoteId && (
+              <MiniNotesPIP
+                noteId={superUIState.selectedNoteId.toString()}
+                title={superAppState.notes.find(n => n.id === superUIState.selectedNoteId?.toString())?.title || 'Untitled Note'}
+                content={superAppState.notes.find(n => n.id === superUIState.selectedNoteId?.toString())?.content || ''}
+                onEdit={() => {
+                  setSuperUIState(prev => ({ 
+                    ...prev, 
+                    currentPage: 'notes',
+                    isNotesPipActive: false 
+                  }))
+                }}
+                onClose={() => {
+                  setSuperUIState(prev => ({ ...prev, isNotesPipActive: false, selectedNoteId: null }))
+                }}
+              />
+            )}
+          </div>
+        </PIPManager>
 
         {/* Performance Monitor */}
         {superUIState.realTimeInsightsEnabled && (

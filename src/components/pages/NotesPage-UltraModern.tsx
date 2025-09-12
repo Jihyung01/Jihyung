@@ -132,7 +132,7 @@ export const NotesPage: React.FC<NotesPageProps> = ({ onNoteCreated }) => {
     }
   };
 
-  const updateNote = async (noteId: number, updates: Partial<Note>) => {
+  const updateNote = async (noteId: string | number, updates: Partial<Note>) => {
     try {
       await enhancedAPI.updateNote(noteId, updates);
       await loadNotes();
@@ -144,7 +144,7 @@ export const NotesPage: React.FC<NotesPageProps> = ({ onNoteCreated }) => {
     }
   };
 
-  const deleteNote = async (noteId: number) => {
+  const deleteNote = async (noteId: string | number) => {
     try {
       await enhancedAPI.deleteNote(noteId);
       await loadNotes();
