@@ -9,7 +9,7 @@ import {
   Eye, 
   EyeOff,
   User,
-  Cursor,
+  MousePointer2,
   MessageSquare,
   Settings,
   Download,
@@ -437,7 +437,7 @@ export const SharedWorkspace: React.FC<SharedWorkspaceProps> = ({
                         exit={{ opacity: 0, scale: 0 }}
                       >
                         <div className="flex items-center gap-1">
-                          <Cursor className="h-4 w-4 text-blue-500" />
+                          <MousePointer2 className="h-4 w-4 text-blue-500" />
                           <span className="text-xs bg-blue-500 text-white px-1 py-0.5 rounded">
                             {activeCollaborators.find(c => c.id === userId)?.name}
                           </span>
