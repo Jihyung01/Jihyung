@@ -2308,94 +2308,152 @@ async def get_tasks(
     offset: int = 0
 ):
     """Get tasks with advanced filtering"""
-    if db_pool is None:
-        # 인메모리 저장소에서 태스크 반환
-        user_id = current_user['id']
-        user_tasks = []
-        
-        # memory_storage에서 사용자의 태스크들 가져오기
-        try:
-            if 'user_tasks' in memory_storage and user_id in memory_storage['user_tasks']:
-                for task in memory_storage['user_tasks'][user_id]:
-                    # 상태 필터링
-                    if status and task.get('status') != status:
-                        continue
-                    # 우선순위 필터링
-                    if priority and task.get('priority') != priority:
-                        continue
-                    # 카테고리 필터링
-                    if category and task.get('category') != category:
-                        continue
-                    
-                    # 응답 형식에 맞게 변환
-                    formatted_task = {
-                        'id': task.get('id'),
-                        'title': task.get('title', ''),
-                        'description': task.get('description', ''),
-                        'status': task.get('status', 'pending'),
-                        'priority': task.get('priority', 'medium'),
-                        'urgency_score': task.get('urgency_score', 5),
-                        'importance_score': task.get('importance_score', 5),
-                        'due_at': task.get('due_date'),  # Map due_date to due_at
-                        'due_date': task.get('due_date'),  # Keep for backward compatibility
-                        'all_day': task.get('all_day', True),
-                        'reminder_date': task.get('reminder_date'),
-                        'completed_at': task.get('completed_at'),
-                        'estimated_duration': task.get('estimated_duration'),
-                        'actual_duration': task.get('actual_duration', 0),  # Default to 0
-                        'assignee': task.get('assignee'),
-                        'project_id': task.get('project_id'),
-                        'parent_task_id': task.get('parent_task_id'),
-                        'tags': task.get('tags', []),
-                        'category': task.get('category'),
-                        'location': task.get('location'),
-                        'energy_level': task.get('energy_level', 'medium'),
-                        'energy': task.get('energy', 5),
-                        'context_tags': task.get('context_tags', []),
-                        'recurrence_rule': task.get('recurrence_rule'),
-                        'ai_generated': task.get('ai_generated', False),
-                        'created_at': _parse_datetime(task.get('created_at')),
-                        'updated_at': _parse_datetime(task.get('updated_at')),
-                        'createdAt': _parse_datetime(task.get('created_at')),
-                        'updatedAt': _parse_datetime(task.get('updated_at')),
+    # Always try database first for data persistence
+    if db_pool is not None:
+        async with db_pool.acquire() as connection:
+            try:
+                query_parts = ["""
+                    SELECT id, title, description, status, priority, urgency_score, importance_score,
+                           due_date, all_day, reminder_date, completed_at, estimated_duration, 
+                           actual_duration, assignee, project_id, parent_task_id, tags, category,
+                           location, energy_level, context_tags, recurrence_rule, ai_generated,
+                           created_at, updated_at, user_id
+                    FROM tasks WHERE user_id = $1
+                """]
+                params = [uuid.UUID(current_user['id'])]
+                param_count = 1
+                
+                if status:
+                    param_count += 1
+                    query_parts.append(f"AND status = ${param_count}")
+                    params.append(status)
+                
+                if priority:
+                    param_count += 1
+                    query_parts.append(f"AND priority = ${param_count}")
+                    params.append(priority)
+                
+                if category:
+                    param_count += 1
+                    query_parts.append(f"AND category = ${param_count}")
+                    params.append(category)
+                
+                if project_id:
+                    param_count += 1
+                    query_parts.append(f"AND project_id = ${param_count}")
+                    params.append(uuid.UUID(project_id))
+                
+                if due_soon:
+                    query_parts.append("AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'")
+                
+                if overdue:
+                    query_parts.append("AND due_date < CURRENT_DATE AND status != 'completed'")
+                
+                query_parts.append(f"ORDER BY created_at DESC LIMIT ${param_count + 1} OFFSET ${param_count + 2}")
+                params.extend([limit, offset])
+                
+                query = " ".join(query_parts)
+                tasks = await connection.fetch(query, *params)
+                
+                result = []
+                for task in tasks:
+                    task_dict = {
+                        'id': str(task['id']),
+                        'title': task['title'],
+                        'description': task['description'],
+                        'status': task['status'],
+                        'priority': task['priority'],
+                        'urgency_score': task['urgency_score'],
+                        'importance_score': task['importance_score'],
+                        'due_at': task['due_date'].isoformat() if task['due_date'] else None,
+                        'due_date': task['due_date'].isoformat() if task['due_date'] else None,
+                        'all_day': task['all_day'],
+                        'reminder_date': task['reminder_date'].isoformat() if task['reminder_date'] else None,
+                        'completed_at': task['completed_at'].isoformat() if task['completed_at'] else None,
+                        'estimated_duration': task['estimated_duration'],
+                        'actual_duration': task['actual_duration'] or 0,
+                        'assignee': task['assignee'],
+                        'project_id': str(task['project_id']) if task['project_id'] else None,
+                        'parent_task_id': str(task['parent_task_id']) if task['parent_task_id'] else None,
+                        'tags': json.loads(task['tags']) if task['tags'] else [],
+                        'category': task['category'],
+                        'location': task['location'],
+                        'energy_level': task['energy_level'],
+                        'energy': task['urgency_score'],  # Use urgency_score as energy fallback
+                        'context_tags': json.loads(task['context_tags']) if task['context_tags'] else [],
+                        'recurrence_rule': task['recurrence_rule'],
+                        'ai_generated': task['ai_generated'],
+                        'created_at': task['created_at'].isoformat() if task['created_at'] else None,
+                        'updated_at': task['updated_at'].isoformat() if task['updated_at'] else None,
+                        'createdAt': task['created_at'].isoformat() if task['created_at'] else None,
+                        'updatedAt': task['updated_at'].isoformat() if task['updated_at'] else None,
                     }
-                    user_tasks.append(formatted_task)
-        except Exception as e:
-            logger.warning(f"Error loading tasks from memory: {e}")
-            
-        # 페이지네이션
-        return user_tasks[offset:offset + limit]
+                    result.append(task_dict)
+                
+                logger.info(f"✅ Retrieved {len(result)} tasks from database for user {current_user['id']}")
+                return result
+                
+            except Exception as e:
+                logger.error(f"❌ Database query error: {e}")
+                # Fall through to memory storage
+
+    # Fallback to memory storage
+    user_id = current_user['id']
+    user_tasks = []
     
-    async with db_pool.acquire() as connection:
-        try:
-            query_parts = ["SELECT * FROM tasks WHERE user_id = $1"]
-            params = [uuid.UUID(current_user['id'])]
-            param_count = 1
-            
-            if status:
-                param_count += 1
-                query_parts.append(f"AND status = ${param_count}")
-                params.append(status)
-            
-            if priority:
-                param_count += 1
-                query_parts.append(f"AND priority = ${param_count}")
-                params.append(priority)
-            
-            if category:
-                param_count += 1
-                query_parts.append(f"AND category = ${param_count}")
-                params.append(category)
-            
-            if project_id:
-                param_count += 1
-                query_parts.append(f"AND project_id = ${param_count}")
-                params.append(uuid.UUID(project_id))
-            
-            if due_soon:
-                query_parts.append("AND due_date BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '7 days'")
-            
-            if overdue:
+    # memory_storage에서 사용자의 태스크들 가져오기
+    try:
+        if 'user_tasks' in memory_storage and user_id in memory_storage['user_tasks']:
+            for task in memory_storage['user_tasks'][user_id]:
+                # 상태 필터링
+                if status and task.get('status') != status:
+                    continue
+                # 우선순위 필터링
+                if priority and task.get('priority') != priority:
+                    continue
+                # 카테고리 필터링
+                if category and task.get('category') != category:
+                    continue
+                
+                # 응답 형식에 맞게 변환
+                formatted_task = {
+                    'id': task.get('id'),
+                    'title': task.get('title', ''),
+                    'description': task.get('description', ''),
+                    'status': task.get('status', 'pending'),
+                    'priority': task.get('priority', 'medium'),
+                    'urgency_score': task.get('urgency_score', 5),
+                    'importance_score': task.get('importance_score', 5),
+                    'due_at': task.get('due_date'),  # Map due_date to due_at
+                    'due_date': task.get('due_date'),  # Keep for backward compatibility
+                    'all_day': task.get('all_day', True),
+                    'reminder_date': task.get('reminder_date'),
+                    'completed_at': task.get('completed_at'),
+                    'estimated_duration': task.get('estimated_duration'),
+                    'actual_duration': task.get('actual_duration', 0),  # Default to 0
+                    'assignee': task.get('assignee'),
+                    'project_id': task.get('project_id'),
+                    'parent_task_id': task.get('parent_task_id'),
+                    'tags': task.get('tags', []),
+                    'category': task.get('category'),
+                    'location': task.get('location'),
+                    'energy_level': task.get('energy_level', 'medium'),
+                    'energy': task.get('energy', 5),
+                    'context_tags': task.get('context_tags', []),
+                    'recurrence_rule': task.get('recurrence_rule'),
+                    'ai_generated': task.get('ai_generated', False),
+                    'created_at': _parse_datetime(task.get('created_at')),
+                    'updated_at': _parse_datetime(task.get('updated_at')),
+                    'createdAt': _parse_datetime(task.get('created_at')),
+                    'updatedAt': _parse_datetime(task.get('updated_at')),
+                }
+                user_tasks.append(formatted_task)
+    except Exception as e:
+        logger.warning(f"Error loading tasks from memory: {e}")
+        
+    # 페이지네이션
+    logger.info(f"📚 Retrieved {len(user_tasks[offset:offset + limit])} tasks from memory storage for user {current_user['id']}")
+    return user_tasks[offset:offset + limit]
                 query_parts.append("AND due_date < CURRENT_TIMESTAMP AND status != 'completed'")
             
             query_parts.append("ORDER BY urgency_score DESC, importance_score DESC, due_date ASC")
@@ -2480,22 +2538,29 @@ async def get_calendar_events(
         if db_pool is not None:
             async with db_pool.acquire() as conn:
                 # Get calendar events
+                # Ensure proper timezone handling for datetime comparison
                 events_query = """
                 SELECT id, title, description, start_time, end_time, location, attendees, created_at, updated_at
                 FROM calendar_events 
-                WHERE user_id = $1 AND start_time >= $2 AND start_time <= $3
+                WHERE user_id = $1 
+                AND start_time >= $2::timestamptz 
+                AND start_time <= $3::timestamptz
                 ORDER BY start_time
                 """
                 events_result = await conn.fetch(events_query, uuid.UUID(current_user['id']), start_date, end_date)
                 
                 # Get tasks with due dates as calendar events
+                # Convert start_date and end_date to date objects for comparison with due_date
+                start_date_only = start_date.date() if start_date.tzinfo else start_date.date()
+                end_date_only = end_date.date() if end_date.tzinfo else end_date.date()
+                
                 tasks_query = """
                 SELECT id, title, description, due_date, priority, status, created_at, updated_at
                 FROM tasks 
                 WHERE user_id = $1 AND due_date >= $2 AND due_date <= $3 AND status != 'completed'
                 ORDER BY due_date
                 """
-                tasks_result = await conn.fetch(tasks_query, uuid.UUID(current_user['id']), start_date.date(), end_date.date())
+                tasks_result = await conn.fetch(tasks_query, uuid.UUID(current_user['id']), start_date_only, end_date_only)
                 
                 # Convert calendar events
                 events = []
@@ -2516,22 +2581,25 @@ async def get_calendar_events(
                 
                 # Convert tasks to calendar events
                 for task in tasks_result:
-                    task_event = {
-                        "id": f"task-{task['id']}",
-                        "title": f"📋 {task['title']}",
-                        "description": task['description'] or "",
-                        "start_at": task['due_date'].isoformat() if task['due_date'] else None,
-                        "end_at": task['due_date'].isoformat() if task['due_date'] else None,
-                        "location": None,
-                        "attendees": [],
-                        "user_id": current_user['id'],
-                        "created_at": task['created_at'].isoformat(),
-                        "updated_at": task['updated_at'].isoformat(),
-                        "type": "task",
-                        "task_id": task['id'],
-                        "priority": task['priority']
-                    }
-                    events.append(task_event)
+                    # Convert due_date (date) to datetime for consistency
+                    if task['due_date']:
+                        due_datetime = datetime.combine(task['due_date'], datetime.min.time()).replace(tzinfo=timezone.utc)
+                        task_event = {
+                            "id": f"task-{task['id']}",
+                            "title": f"📋 {task['title']}",
+                            "description": task['description'] or "",
+                            "start_at": due_datetime.isoformat(),
+                            "end_at": due_datetime.isoformat(),
+                            "location": None,
+                            "attendees": [],
+                            "user_id": current_user['id'],
+                            "created_at": task['created_at'].isoformat() if task['created_at'] else None,
+                            "updated_at": task['updated_at'].isoformat() if task['updated_at'] else None,
+                            "type": "task",
+                            "task_id": str(task['id']),
+                            "priority": task['priority']
+                        }
+                        events.append(task_event)
                 
                 logger.info(f"✅ Found {len(events)} calendar events/tasks")
                 return events
@@ -3829,84 +3897,140 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
 @app.put("/api/tasks/{task_id}")
 async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = Depends(get_current_user)):
     """Update task with completion tracking"""
-    if db_pool is None:
-        # Memory storage fallback
-        task_id_str = str(task_id)
-        if task_id_str not in memory_storage['tasks']:
+    try:
+        logger.info(f"📝 Updating task {task_id} for user {current_user['id']}")
+        
+        task_found = False
+        updated_task = None
+        
+        # Always try database first for data persistence
+        if db_pool is not None:
+            async with db_pool.acquire() as connection:
+                try:
+                    task_uuid = uuid.UUID(task_id) if '-' in task_id else None
+                    if task_uuid:
+                        # Check if task exists and belongs to user
+                        existing_task = await connection.fetchrow(
+                            "SELECT status FROM tasks WHERE id = $1 AND user_id = $2",
+                            task_uuid, uuid.UUID(current_user['id'])
+                        )
+                        
+                        if existing_task:
+                            # Set completion timestamp if status changed to completed
+                            completed_at = None
+                            if task_data.status == 'completed' and existing_task['status'] != 'completed':
+                                completed_at = datetime.now(timezone.utc)
+                            elif task_data.status != 'completed':
+                                completed_at = None
+                            
+                            # Build dynamic update query for only provided fields
+                            update_fields = []
+                            values = []
+                            param_count = 1
+                            
+                            for field, value in task_data.dict(exclude_unset=True).items():
+                                if field == 'due_at' and value:
+                                    update_fields.append(f"due_date = ${param_count}")
+                                    # Convert string to date if needed
+                                    if isinstance(value, str):
+                                        try:
+                                            due_date = datetime.fromisoformat(value.replace('Z', '+00:00')).date()
+                                            values.append(due_date)
+                                        except:
+                                            values.append(value)
+                                    else:
+                                        values.append(value)
+                                    param_count += 1
+                                elif field == 'tags' and value:
+                                    update_fields.append(f"tags = ${param_count}")
+                                    values.append(json.dumps(value))
+                                    param_count += 1
+                                elif field == 'context_tags' and value:
+                                    update_fields.append(f"context_tags = ${param_count}")
+                                    values.append(json.dumps(value))
+                                    param_count += 1
+                                elif field not in ['due_date']:  # Skip due_date as it's handled by due_at
+                                    update_fields.append(f"{field} = ${param_count}")
+                                    values.append(value)
+                                    param_count += 1
+                            
+                            if completed_at is not None:
+                                update_fields.append(f"completed_at = ${param_count}")
+                                values.append(completed_at)
+                                param_count += 1
+                            
+                            update_fields.append("updated_at = CURRENT_TIMESTAMP")
+                            
+                            # Add WHERE clause parameters
+                            values.extend([task_uuid, uuid.UUID(current_user['id'])])
+                            where_params = f"${param_count} AND user_id = ${param_count + 1}"
+                            
+                            query = f"UPDATE tasks SET {', '.join(update_fields)} WHERE id = {where_params} RETURNING *"
+                            
+                            result = await connection.fetch(query, *values)
+                            
+                            if result:
+                                task_row = result[0]
+                                updated_task = {
+                                    'id': str(task_row['id']),
+                                    'title': task_row['title'],
+                                    'description': task_row['description'],
+                                    'status': task_row['status'],
+                                    'priority': task_row['priority'],
+                                    'due_date': task_row['due_date'].isoformat() if task_row['due_date'] else None,
+                                    'completed_at': task_row['completed_at'].isoformat() if task_row['completed_at'] else None,
+                                    'created_at': task_row['created_at'].isoformat() if task_row['created_at'] else None,
+                                    'updated_at': task_row['updated_at'].isoformat() if task_row['updated_at'] else None,
+                                    'tags': json.loads(task_row['tags']) if task_row['tags'] else [],
+                                    'user_id': str(task_row['user_id'])
+                                }
+                                task_found = True
+                                logger.info(f"✅ Task {task_uuid} updated in database")
+                
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"UUID parsing failed for task {task_id}: {e}")
+                    # Continue to memory storage fallback
+        
+        # Fallback to memory storage if not found in database
+        if not task_found:
+            task_id_str = str(task_id)
+            user_tasks = memory_storage.get('tasks', {})
+            
+            if task_id_str in user_tasks:
+                task = user_tasks[task_id_str]
+                if task.get('user_id') == current_user['id']:
+                    # Update fields that are provided
+                    for field, value in task_data.dict(exclude_unset=True).items():
+                        if field == 'due_at' and value:
+                            task['due_date'] = value
+                            task['due_at'] = value
+                        elif field == 'completed_at' and value:
+                            task['completed_at'] = value
+                        elif value is not None:
+                            task[field] = value
+                    
+                    # Set completion timestamp if status changed to completed
+                    if task_data.status == 'completed' and task.get('status') != 'completed':
+                        task['completed_at'] = datetime.now(timezone.utc).isoformat()
+                    elif task_data.status and task_data.status != 'completed':
+                        task['completed_at'] = None
+                    
+                    task['updated_at'] = datetime.now(timezone.utc).isoformat()
+                    updated_task = task
+                    task_found = True
+                    logger.info(f"✅ Task {task_id} updated in memory storage")
+        
+        if not task_found:
             raise HTTPException(status_code=404, detail="Task not found")
         
-        task = memory_storage['tasks'][task_id_str]
-        if task['user_id'] != current_user['id']:
-            raise HTTPException(status_code=404, detail="Task not found")
+        return {"message": "Task updated successfully", "task": updated_task}
         
-        # Update fields that are provided
-        for field, value in task_data.dict(exclude_unset=True).items():
-            if field == 'due_at' and value:
-                task['due_date'] = value
-                task['due_at'] = value
-            elif field == 'completed_at' and value:
-                task['completed_at'] = value
-            elif value is not None:
-                task[field] = value
-        
-        # Set completion timestamp if status changed to completed
-        if task_data.status == 'completed' and task.get('status') != 'completed':
-            task['completed_at'] = datetime.utcnow()
-        elif task_data.status and task_data.status != 'completed':
-            task['completed_at'] = None
-        
-        task['updated_at'] = datetime.utcnow()
-        
-        return {"message": "Task updated successfully", "task": task}
-    
-    async with db_pool.acquire() as connection:
-        # Check if task exists and belongs to user
-        existing_task = await connection.fetchrow(
-            "SELECT status FROM tasks WHERE id = $1 AND user_id = $2",
-            uuid.UUID(task_id), current_user['id']
-        )
-        
-        if not existing_task:
-            raise HTTPException(status_code=404, detail="Task not found")
-        
-        # Set completion timestamp if status changed to completed
-        completed_at = None
-        if task_data.status == 'completed' and existing_task['status'] != 'completed':
-            completed_at = datetime.utcnow()
-        elif task_data.status != 'completed':
-            completed_at = None
-        
-        # Build dynamic update query for only provided fields
-        update_fields = []
-        values = []
-        param_count = 1
-        
-        for field, value in task_data.dict(exclude_unset=True).items():
-            if field == 'due_at' and value:
-                update_fields.append(f"due_date = ${param_count}")
-                values.append(value)
-                param_count += 1
-            elif field not in ['due_date']:  # Skip due_date as it's handled by due_at
-                update_fields.append(f"{field} = ${param_count}")
-                values.append(value)
-                param_count += 1
-        
-        if completed_at is not None:
-            update_fields.append(f"completed_at = ${param_count}")
-            values.append(completed_at)
-            param_count += 1
-        
-        update_fields.append("updated_at = CURRENT_TIMESTAMP")
-        
-        # Add WHERE clause parameters
-        values.extend([uuid.UUID(task_id), current_user['id']])
-        where_params = f"${param_count} AND user_id = ${param_count + 1}"
-        
-        query = f"UPDATE tasks SET {', '.join(update_fields)} WHERE id = {where_params}"
-        
-        result = await connection.execute(query, *values)
-        
-        if result == "UPDATE 0":
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error updating task {task_id}: {str(e)}")
+        logger.error(f"Exception details: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
             raise HTTPException(status_code=404, detail="Task not found")
         
         # Send real-time update
@@ -4197,27 +4321,42 @@ async def delete_task(
 async def get_notes(current_user: dict = Depends(get_current_user)):
     """Get all notes for the current user"""
     try:
-        if USE_MEMORY_STORAGE:
-            user_notes = memory_storage['notes'].get(str(current_user['id']), [])
-            logger.info(f"📚 Retrieved {len(user_notes)} notes from memory storage for user {current_user['id']}")
-            return user_notes
-        else:
-            query = """
-                SELECT * FROM notes 
+        # Always try database first for data persistence
+        if db_pool is not None:
+            async with db_pool.acquire() as conn:
+                query = """
+                SELECT id, title, content, tags, category, color, is_pinned, is_archived, 
+                       created_at, updated_at, user_id
+                FROM notes 
                 WHERE user_id = $1 
                 ORDER BY created_at DESC
-            """
-            notes = await database.fetch_all(query, current_user['id'])
-            
-            result = []
-            for note in notes:
-                note_dict = dict(note)
-                note_dict['id'] = str(note_dict['id'])
-                note_dict['user_id'] = str(note_dict['user_id'])
-                result.append(note_dict)
-            
-            logger.info(f"📚 Retrieved {len(result)} notes from database for user {current_user['id']}")
-            return result
+                """
+                notes = await conn.fetch(query, uuid.UUID(current_user['id']))
+                
+                result = []
+                for note in notes:
+                    note_dict = {
+                        'id': str(note['id']),
+                        'title': note['title'],
+                        'content': note['content'],
+                        'tags': json.loads(note['tags']) if note['tags'] else [],
+                        'category': note['category'],
+                        'color': note['color'],
+                        'is_pinned': note['is_pinned'],
+                        'is_archived': note['is_archived'],
+                        'created_at': note['created_at'].isoformat() if note['created_at'] else None,
+                        'updated_at': note['updated_at'].isoformat() if note['updated_at'] else None,
+                        'user_id': str(note['user_id'])
+                    }
+                    result.append(note_dict)
+                
+                logger.info(f"✅ Retrieved {len(result)} notes from cloud for user {current_user['id']}")
+                return result
+        
+        # Fallback to memory storage if database is not available
+        user_notes = memory_storage.get('notes', {}).get(str(current_user['id']), [])
+        logger.info(f"📚 Retrieved {len(user_notes)} notes from memory storage for user {current_user['id']}")
+        return user_notes
             
     except Exception as e:
         logger.error(f"❌ Error retrieving notes: {str(e)}")
@@ -4331,18 +4470,75 @@ async def update_note(
 ):
     """Update an existing note"""
     try:
-        note_uuid = parse_id(note_id)
         now = datetime.now(timezone.utc)
         
-        logger.info(f"📝 Updating note {note_uuid} for user {current_user['id']}")
+        logger.info(f"📝 Updating note {note_id} for user {current_user['id']}")
+        logger.info(f"Note update data: {note_data}")
         
-        if USE_MEMORY_STORAGE:
-            # Update in memory storage
-            user_notes = memory_storage['notes'].get(str(current_user['id']), [])
-            note_found = False
+        note_found = False
+        updated_note = None
+        
+        # Always try database first for data persistence
+        if db_pool is not None:
+            async with db_pool.acquire() as conn:
+                # Try direct UUID lookup first
+                try:
+                    note_uuid = uuid.UUID(note_id) if '-' in note_id else None
+                    if note_uuid:
+                        query = """
+                            UPDATE notes SET 
+                                title = $1, content = $2, tags = $3, category = $4, 
+                                color = $5, is_pinned = $6, is_archived = $7, updated_at = $8
+                            WHERE id = $9 AND user_id = $10
+                            RETURNING id, title, content, tags, category, color, is_pinned, 
+                                     is_archived, created_at, updated_at, user_id
+                        """
+                        
+                        tags_json = json.dumps(note_data.get('tags', []))
+                        
+                        result = await conn.fetch(
+                            query,
+                            note_data.get('title', ''),
+                            note_data.get('content', ''),
+                            tags_json,
+                            note_data.get('category', ''),
+                            note_data.get('color', '#ffffff'),
+                            note_data.get('is_pinned', False),
+                            note_data.get('is_archived', False),
+                            now,
+                            note_uuid,
+                            uuid.UUID(current_user['id'])
+                        )
+                        
+                        if result:
+                            note_row = result[0]
+                            updated_note = {
+                                "id": str(note_row['id']),
+                                "title": note_row['title'],
+                                "content": note_row['content'],
+                                "tags": json.loads(note_row['tags']) if note_row['tags'] else [],
+                                "category": note_row['category'],
+                                "color": note_row['color'],
+                                "is_pinned": note_row['is_pinned'],
+                                "is_archived": note_row['is_archived'],
+                                "user_id": str(note_row['user_id']),
+                                "created_at": note_row['created_at'].isoformat() if note_row['created_at'] else None,
+                                "updated_at": note_row['updated_at'].isoformat() if note_row['updated_at'] else None,
+                                "type": "note"
+                            }
+                            note_found = True
+                            logger.info(f"✅ Note {note_uuid} updated in database")
+                
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"UUID parsing failed for {note_id}: {e}")
+                    # Continue to memory storage fallback
+        
+        # Fallback to memory storage if not found in database
+        if not note_found:
+            user_notes = memory_storage.get('notes', {}).get(str(current_user['id']), [])
             
             for i, note in enumerate(user_notes):
-                if parse_id(note['id']) == note_uuid:
+                if str(note.get('id', '')) == str(note_id):
                     # Update note fields
                     note.update({
                         "title": note_data.get('title', note.get('title', '')),
@@ -4352,57 +4548,39 @@ async def update_note(
                         "color": note_data.get('color', note.get('color', '#ffffff')),
                         "is_pinned": note_data.get('is_pinned', note.get('is_pinned', False)),
                         "is_archived": note_data.get('is_archived', note.get('is_archived', False)),
-                        "updated_at": now
+                        "updated_at": now.isoformat()
                     })
-                    user_notes[i] = note
+                    memory_storage['notes'][str(current_user['id'])][i] = note
                     note_found = True
+                    
+                    updated_note = {
+                        "id": note["id"],
+                        "title": note["title"],
+                        "content": note["content"],
+                        "tags": note["tags"],
+                        "category": note["category"],
+                        "color": note["color"],
+                        "is_pinned": note["is_pinned"],
+                        "is_archived": note["is_archived"],
+                        "user_id": note["user_id"],
+                        "created_at": note.get("created_at"),
+                        "updated_at": note["updated_at"],
+                        "type": "note"
+                    }
+                    logger.info(f"✅ Note {note_id} updated in memory storage")
                     break
-            
-            if not note_found:
-                raise HTTPException(status_code=404, detail="Note not found")
-            
-            logger.info(f"✅ Note {note_uuid} updated in memory storage")
-            
-            # Return the updated note
-            updated_note = user_notes[i]
-            return {
-                "id": updated_note["id"],
-                "title": updated_note["title"],
-                "content": updated_note["content"],
-                "tags": updated_note["tags"],
-                "category": updated_note["category"],
-                "color": updated_note["color"],
-                "is_pinned": updated_note["is_pinned"],
-                "is_archived": updated_note["is_archived"],
-                "user_id": updated_note["user_id"],
-                "created_at": updated_note["created_at"].isoformat() if isinstance(updated_note["created_at"], datetime) else updated_note["created_at"],
-                "updated_at": updated_note["updated_at"].isoformat(),
-                "type": "note"
-            }
         
-        else:
-            # Update in database
-            query = """
-                UPDATE notes SET 
-                    title = $1, content = $2, tags = $3, category = $4, 
-                    color = $5, is_pinned = $6, is_archived = $7, updated_at = $8
-                WHERE id = $9 AND user_id = $10
-                RETURNING *
-            """
-            
-            note = await database.fetch_one(
-                query,
-                note_data.get('title'),
-                note_data.get('content'),
-                note_data.get('tags', []),
-                note_data.get('category', ''),
-                note_data.get('color', '#ffffff'),
-                note_data.get('is_pinned', False),
-                note_data.get('is_archived', False),
-                now,
-                note_uuid,
-                current_user['id']
-            )
+        if not note_found:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        return updated_note
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error updating note {note_id}: {str(e)}")
+        logger.error(f"Exception details: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to update note: {str(e)}")
             
             if not note:
                 raise HTTPException(status_code=404, detail="Note not found")
@@ -4440,40 +4618,61 @@ async def delete_note(
 ):
     """Delete a note"""
     try:
-        note_uuid = parse_id(note_id)
+        logger.info(f"🗑️ Attempting to delete note {note_id} for user {current_user['id']}")
         
-        logger.info(f"🗑️ Deleting note {note_uuid} for user {current_user['id']}")
+        # First try to find the note using the provided ID directly (for backwards compatibility)
+        # This handles both UUID and legacy numeric IDs
+        note_found = False
         
-        if USE_MEMORY_STORAGE:
-            # Delete from memory storage
-            user_notes = memory_storage['notes'].get(str(current_user['id']), [])
+        if db_pool is not None:
+            async with db_pool.acquire() as conn:
+                # Try direct UUID lookup first
+                try:
+                    note_uuid = uuid.UUID(note_id) if '-' in note_id else None
+                    if note_uuid:
+                        query = "DELETE FROM notes WHERE id = $1 AND user_id = $2 RETURNING id"
+                        result = await conn.fetch(query, note_uuid, uuid.UUID(current_user['id']))
+                        if result:
+                            note_found = True
+                            logger.info(f"✅ Note {note_uuid} deleted from database")
+                except (ValueError, TypeError):
+                    # Not a valid UUID, continue with other methods
+                    pass
+                
+                # If not found by UUID, try to find by searching all user notes 
+                # This handles legacy numeric IDs or other formats
+                if not note_found:
+                    logger.warning(f"Cloud delete failed: badly formed hexadecimal UUID string, using memory fallback")
+                    # Delete from memory storage as fallback
+                    user_notes = memory_storage.get('notes', {}).get(str(current_user['id']), [])
+                    original_count = len(user_notes)
+                    memory_storage.setdefault('notes', {})[str(current_user['id'])] = [
+                        note for note in user_notes 
+                        if str(note.get('id', '')) != str(note_id)
+                    ]
+                    new_count = len(memory_storage['notes'][str(current_user['id'])])
+                    
+                    if original_count > new_count:
+                        note_found = True
+                        logger.info(f"✅ Note {note_id} deleted from memory storage")
+        else:
+            # Pure memory storage mode
+            user_notes = memory_storage.get('notes', {}).get(str(current_user['id']), [])
             original_count = len(user_notes)
-            memory_storage['notes'][str(current_user['id'])] = [
+            memory_storage.setdefault('notes', {})[str(current_user['id'])] = [
                 note for note in user_notes 
-                if parse_id(note['id']) != note_uuid
+                if str(note.get('id', '')) != str(note_id)
             ]
             new_count = len(memory_storage['notes'][str(current_user['id'])])
             
-            if original_count == new_count:
-                raise HTTPException(status_code=404, detail="Note not found")
-                
-            logger.info(f"✅ Note {note_uuid} deleted from memory storage")
-            
-        else:
-            # Delete from database
-            query = """
-                DELETE FROM notes 
-                WHERE id = $1 AND user_id = $2 
-                RETURNING id
-            """
-            result = await database.fetch_one(query, note_uuid, current_user['id'])
-            
-            if not result:
-                raise HTTPException(status_code=404, detail="Note not found")
-                
-            logger.info(f"✅ Note {note_uuid} deleted from database")
+            if original_count > new_count:
+                note_found = True
+                logger.info(f"✅ Note {note_id} deleted from memory storage")
         
-        return {"message": "Note deleted successfully", "id": str(note_uuid)}
+        if not note_found:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        return {"message": "Note deleted successfully", "id": note_id}
         
     except HTTPException:
         raise
