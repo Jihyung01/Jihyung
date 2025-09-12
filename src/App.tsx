@@ -26,7 +26,7 @@ import TasksPageUltraModern from './components/pages/TasksPage-UltraModern'
 import { CollaborationPage } from './components/pages/CollaborationPage'
 
 // 새로 추가된 협업 및 PIP 컴포넌트들
-import SharedWorkspace from './components/collaboration/SharedWorkspace'
+import SharedWorkspace from './components/Collaboration/SharedWorkspace'
 import { PIPManager, MiniVideoCallPIP, MiniNotesPIP } from './components/ui/PictureInPicture'
 
 // 초월적 컴포넌트들 import
