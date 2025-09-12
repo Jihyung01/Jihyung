@@ -2454,48 +2454,64 @@ async def get_tasks(
     # 페이지네이션
     logger.info(f"📚 Retrieved {len(user_tasks[offset:offset + limit])} tasks from memory storage for user {current_user['id']}")
     return user_tasks[offset:offset + limit]
-                query_parts.append("AND due_date < CURRENT_TIMESTAMP AND status != 'completed'")
-            
-            query_parts.append("ORDER BY urgency_score DESC, importance_score DESC, due_date ASC")
-            query_parts.append(f"LIMIT {limit} OFFSET {offset}")
-            
-            query = " ".join(query_parts)
-            tasks = await connection.fetch(query, *params)
-            
-            return [
-                {
-                    "id": str(task['id']),
-                    "title": task['title'],
-                    "description": task['description'],
-                    "status": task['status'],
-                    "priority": task['priority'],
-                    "urgency_score": task['urgency_score'],
-                    "importance_score": task['importance_score'],
-                    "due_at": task['due_date'],  # Return as due_at for frontend compatibility
-                    "due_date": task['due_date'],  # Keep for backward compatibility
-                    "all_day": task.get('all_day', True),  # Default to True if not set
-                    "reminder_date": task['reminder_date'],
-                    "completed_at": task['completed_at'],
-                    "estimated_duration": task['estimated_duration'],
-                    "actual_duration": task['actual_duration'],
-                    "assignee": task['assignee'],
-                    "project_id": str(task['project_id']) if task['project_id'] else None,
-                    "parent_task_id": str(task['parent_task_id']) if task['parent_task_id'] else None,
-                    "tags": task['tags'] or [],
-                    "category": task['category'],
-                    "location": task['location'],
-                    "energy_level": task['energy_level'],
-                    "context_tags": task['context_tags'] or [],
-                    "recurrence_rule": task['recurrence_rule'],
-                    "ai_generated": task['ai_generated'],
-                    "createdAt": task['created_at'],
-                    "updatedAt": task['updated_at']
-                }
-                for task in tasks
-            ]
-        except Exception as e:
-            logger.error(f"Error fetching tasks from database: {e}")
-            return []
+
+# Calendar Events API  
+@app.get("/api/calendar/events")
+async def get_calendar_events(
+    start: str = Query(description="Start date in ISO format"),
+    end: str = Query(description="End date in ISO format"), 
+    limit: int = Query(default=50, description="Maximum number of events to return"),
+    offset: int = Query(default=0, description="Number of events to skip"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get calendar events for a specific date range"""
+    try:
+        # Parse date parameters
+        try:
+            start_date = datetime.fromisoformat(start.replace('Z', '+00:00'))
+            end_date = datetime.fromisoformat(end.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format")
+        
+        logger.info(f"📅 Getting calendar events from {start_date} to {end_date} for user {current_user['id']}")
+        
+        if db_pool is not None:
+            async with db_pool.acquire() as conn:
+                events = await conn.fetch(
+                    """SELECT * FROM calendar_events 
+                       WHERE user_id = $1 AND start_time >= $2 AND start_time <= $3
+                       ORDER BY start_time ASC LIMIT $4 OFFSET $5""",
+                    current_user['id'], start_date, end_date, limit, offset
+                )
+                
+                return [
+                    {
+                        "id": str(event['id']),
+                        "title": event['title'],
+                        "description": event['description'],
+                        "start": event['start_time'],
+                        "end": event['end_time'],
+                        "all_day": event['all_day'],
+                        "color": event['color'],
+                        "location": event['location'],
+                        "event_type": event['event_type'],
+                        "createdAt": event['created_at'],
+                        "updatedAt": event['updated_at']
+                    }
+                    for event in events
+                ]
+        
+        # Fallback to memory storage
+        events = []
+        for event_id, event in memory_storage.get('events', {}).items():
+            if event.get('user_id') == current_user['id']:
+                events.append(event)
+        
+        return events[offset:offset + limit]
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get calendar events: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get calendar events: {str(e)}")
 
 # ============== Calendar Management Endpoints ==============
 
@@ -4031,15 +4047,6 @@ async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = 
         logger.error(f"❌ Error updating task {task_id}: {str(e)}")
         logger.error(f"Exception details: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
-            raise HTTPException(status_code=404, detail="Task not found")
-        
-        # Send real-time update
-        await manager.send_personal_message({
-            "type": "task_updated",
-            "data": {"id": task_id, "status": task_data.status}
-        }, current_user['id'])
-        
-        return {"message": "Task updated successfully"}
 
 @app.patch("/api/tasks/{task_id}")
 async def update_task_partial(task_id: str, task_data: dict, current_user: dict = Depends(get_current_user)):
@@ -4581,28 +4588,11 @@ async def update_note(
         logger.error(f"❌ Error updating note {note_id}: {str(e)}")
         logger.error(f"Exception details: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to update note: {str(e)}")
-            
-            if not note:
-                raise HTTPException(status_code=404, detail="Note not found")
-            
-            logger.info(f"✅ Note {note_uuid} updated in database")
-            
-            return {
-                "id": str(note['id']),
-                "title": note['title'],
-                "content": note['content'],
-                "tags": note['tags'],
-                "category": note['category'],
-                "color": note['color'],
-                "is_pinned": note['is_pinned'],
-                "is_archived": note['is_archived'],
-                "user_id": str(note['user_id']),
-                "created_at": note['created_at'].isoformat(),
-                "updated_at": note['updated_at'].isoformat(),
-                "type": "note"
-            }
-        
-    except HTTPException:
+
+@app.delete("/api/notes/{note_id}")
+async def delete_note(note_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a note with enhanced UUID and legacy ID support"""
+    try:
         raise
     except Exception as e:
         logger.error(f"❌ Error updating note {note_id}: {str(e)}")

@@ -1,162 +1,229 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Sun, 
-  Cloud, 
-  CloudRain, 
-  CloudSnow, 
-  Zap, 
-  Eye, 
-  Wind, 
-  Droplets, 
+import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Sun,
+  Cloud,
+  CloudRain,
+  CloudSnow,
+  Zap,
+  Eye,
+  Wind,
+  Droplets,
   Thermometer,
   MapPin,
   RefreshCw,
   TrendingUp,
   TrendingDown,
-  Activity
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './card';
-import { Button } from './button';
-import { Badge } from './badge';
+  Activity,
+} from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from './card'
+import { Button } from './button'
+import { Badge } from './badge'
 
 interface WeatherData {
-  location: string;
-  temperature: number;
-  condition: string;
-  description: string;
-  humidity: number;
-  windSpeed: number;
-  visibility: number;
-  feelsLike: number;
-  uvIndex: number;
-  pressure: number;
-  icon: string;
+  location: string
+  temperature: number
+  condition: string
+  description: string
+  humidity: number
+  windSpeed: number
+  visibility: number
+  feelsLike: number
+  uvIndex: number
+  pressure: number
+  icon: string
   forecast: {
-    date: string;
-    high: number;
-    low: number;
-    condition: string;
-    icon: string;
-  }[];
+    date: string
+    high: number
+    low: number
+    condition: string
+    icon: string
+  }[]
 }
 
 interface WeatherWidgetProps {
-  className?: string;
-  compact?: boolean;
-  showForecast?: boolean;
+  className?: string
+  compact?: boolean
+  showForecast?: boolean
 }
 
-export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ 
-  className = '', 
+export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
+  className = '',
   compact = false,
-  showForecast = true 
+  showForecast = true,
 }) => {
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [weather, setWeather] = useState<WeatherData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
-  // Mock weather data for demonstration
-  const getMockWeatherData = (): WeatherData => {
-    const conditions = [
-      { condition: 'sunny', description: '맑음', icon: 'sun' },
-      { condition: 'cloudy', description: '흐림', icon: 'cloud' },
-      { condition: 'rainy', description: '비', icon: 'rain' },
-      { condition: 'partly-cloudy', description: '구름 조금', icon: 'partly-cloudy' }
-    ];
-    
-    const randomCondition = conditions[Math.floor(Math.random() * conditions.length)];
-    const baseTemp = 20 + Math.floor(Math.random() * 15);
-    
-    return {
-      location: '서울, 대한민국',
-      temperature: baseTemp,
-      condition: randomCondition.condition,
-      description: randomCondition.description,
-      humidity: 45 + Math.floor(Math.random() * 40),
-      windSpeed: 3 + Math.floor(Math.random() * 10),
-      visibility: 8 + Math.floor(Math.random() * 7),
-      feelsLike: baseTemp + Math.floor(Math.random() * 6) - 3,
-      uvIndex: Math.floor(Math.random() * 10),
-      pressure: 1010 + Math.floor(Math.random() * 30),
-      icon: randomCondition.icon,
-      forecast: Array.from({ length: 5 }, (_, i) => ({
-        date: new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { weekday: 'short' }),
-        high: baseTemp + Math.floor(Math.random() * 10) - 5,
-        low: baseTemp - 5 + Math.floor(Math.random() * 8),
-        condition: conditions[Math.floor(Math.random() * conditions.length)].condition,
-        icon: conditions[Math.floor(Math.random() * conditions.length)].icon
-      }))
-    };
-  };
+  // Weather code mapping for Open-Meteo API
+  const mapWeatherCode = (code: number) => {
+    if (code === 0) return { condition: 'sunny', description: '맑음', icon: 'sun' }
+    if ([1, 2, 3].includes(code))
+      return { condition: 'partly-cloudy', description: '구름 조금', icon: 'partly-cloudy' }
+    if ([45, 48].includes(code)) return { condition: 'cloudy', description: '흐림', icon: 'cloud' }
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code))
+      return { condition: 'rainy', description: '비', icon: 'rain' }
+    if ([71, 73, 75, 77, 85, 86].includes(code))
+      return { condition: 'snowy', description: '눈', icon: 'snow' }
+    if ([95, 96, 99].includes(code))
+      return { condition: 'stormy', description: '뇌우', icon: 'stormy' }
+    return { condition: 'cloudy', description: '흐림', icon: 'cloud' }
+  }
+
+  // Get user's current location
+  const getCurrentLocation = (): Promise<{ lat: number; lon: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        // Fallback to Seoul coordinates
+        resolve({ lat: 37.57, lon: 126.98 })
+        return
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          resolve({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+          })
+        },
+        error => {
+          console.warn('Location access denied, using Seoul as default:', error)
+          // Fallback to Seoul coordinates
+          resolve({ lat: 37.57, lon: 126.98 })
+        },
+        { timeout: 10000, enableHighAccuracy: false }
+      )
+    })
+  }
 
   const fetchWeather = async () => {
-    setLoading(true);
-    setError(null);
-    
+    setLoading(true)
+    setError(null)
+
     try {
-      // In a real implementation, you would call a weather API here
-      // For now, we'll simulate an API call with mock data
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const mockData = getMockWeatherData();
-      setWeather(mockData);
-      setLastUpdated(new Date());
+      // Get user's current location
+      const location = await getCurrentLocation()
+
+      // Call Open-Meteo API for real weather data
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${location.lat}&longitude=${location.lon}&current_weather=true&hourly=relativehumidity_2m,apparent_temperature,visibility,uv_index,pressure_msl,windspeed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Asia%2FSeoul&forecast_days=6`
+
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Weather API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      const current = data.current_weather
+      const hourly = data.hourly
+      const daily = data.daily
+
+      // Find current hour index for detailed data
+      const currentTime = new Date(current.time)
+      const currentHourIndex = hourly.time.findIndex(
+        (time: string) =>
+          new Date(time).getHours() === currentTime.getHours() &&
+          new Date(time).getDate() === currentTime.getDate()
+      )
+
+      // Map weather code to our format
+      const weatherMapping = mapWeatherCode(current.weathercode)
+
+      // Determine location name (default to Seoul if geolocation used)
+      const locationName =
+        location.lat === 37.57 && location.lon === 126.98 ? '서울, 대한민국' : '현재 위치'
+
+      const weatherData: WeatherData = {
+        location: locationName,
+        temperature: Math.round(current.temperature),
+        condition: weatherMapping.condition,
+        description: weatherMapping.description,
+        humidity:
+          currentHourIndex >= 0 ? Math.round(hourly.relativehumidity_2m[currentHourIndex]) : 0,
+        windSpeed: Math.round(current.windspeed || 0),
+        visibility:
+          currentHourIndex >= 0
+            ? Math.round((hourly.visibility[currentHourIndex] || 10000) / 1000)
+            : 10,
+        feelsLike:
+          currentHourIndex >= 0
+            ? Math.round(hourly.apparent_temperature[currentHourIndex])
+            : Math.round(current.temperature),
+        uvIndex: currentHourIndex >= 0 ? Math.round(hourly.uv_index[currentHourIndex] || 0) : 0,
+        pressure:
+          currentHourIndex >= 0 ? Math.round(hourly.pressure_msl[currentHourIndex] || 1013) : 1013,
+        icon: weatherMapping.icon,
+        forecast: daily.time.slice(1, 6).map((date: string, index: number) => {
+          const forecastMapping = mapWeatherCode(daily.weathercode[index + 1])
+          return {
+            date: new Date(date).toLocaleDateString('ko-KR', { weekday: 'short' }),
+            high: Math.round(daily.temperature_2m_max[index + 1]),
+            low: Math.round(daily.temperature_2m_min[index + 1]),
+            condition: forecastMapping.condition,
+            icon: forecastMapping.icon,
+          }
+        }),
+      }
+
+      setWeather(weatherData)
+      setLastUpdated(new Date())
     } catch (err) {
-      console.error('Weather fetch error:', err);
-      setError('날씨 정보를 불러올 수 없습니다');
+      console.error('Weather fetch error:', err)
+      setError('날씨 정보를 불러올 수 없습니다')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    fetchWeather();
-    
+    fetchWeather()
+
     // Auto-refresh every 10 minutes
-    const interval = setInterval(fetchWeather, 10 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+    const interval = setInterval(fetchWeather, 10 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const getWeatherIcon = (condition: string) => {
     switch (condition) {
       case 'sunny':
-        return <Sun className="h-8 w-8 text-yellow-500" />;
+        return <Sun className="h-8 w-8 text-yellow-500" />
       case 'cloudy':
-        return <Cloud className="h-8 w-8 text-gray-500" />;
+        return <Cloud className="h-8 w-8 text-gray-500" />
       case 'rainy':
-        return <CloudRain className="h-8 w-8 text-blue-500" />;
+        return <CloudRain className="h-8 w-8 text-blue-500" />
       case 'snowy':
-        return <CloudSnow className="h-8 w-8 text-blue-200" />;
+        return <CloudSnow className="h-8 w-8 text-blue-200" />
       case 'stormy':
-        return <Zap className="h-8 w-8 text-purple-500" />;
+        return <Zap className="h-8 w-8 text-purple-500" />
       case 'partly-cloudy':
         return (
           <div className="relative">
             <Sun className="h-8 w-8 text-yellow-500" />
             <Cloud className="h-4 w-4 text-gray-400 absolute top-0 right-0" />
           </div>
-        );
+        )
       default:
-        return <Sun className="h-8 w-8 text-yellow-500" />;
+        return <Sun className="h-8 w-8 text-yellow-500" />
     }
-  };
+  }
 
   const getTemperatureColor = (temp: number) => {
-    if (temp >= 30) return 'text-red-500';
-    if (temp >= 25) return 'text-orange-500';
-    if (temp >= 20) return 'text-green-500';
-    if (temp >= 10) return 'text-blue-500';
-    return 'text-blue-700';
-  };
+    if (temp >= 30) return 'text-red-500'
+    if (temp >= 25) return 'text-orange-500'
+    if (temp >= 20) return 'text-green-500'
+    if (temp >= 10) return 'text-blue-500'
+    return 'text-blue-700'
+  }
 
   const getUVLevel = (uvIndex: number) => {
-    if (uvIndex <= 2) return { level: '낮음', color: 'bg-green-500' };
-    if (uvIndex <= 5) return { level: '보통', color: 'bg-yellow-500' };
-    if (uvIndex <= 7) return { level: '높음', color: 'bg-orange-500' };
-    if (uvIndex <= 10) return { level: '매우 높음', color: 'bg-red-500' };
-    return { level: '위험', color: 'bg-purple-500' };
-  };
+    if (uvIndex <= 2) return { level: '낮음', color: 'bg-green-500' }
+    if (uvIndex <= 5) return { level: '보통', color: 'bg-yellow-500' }
+    if (uvIndex <= 7) return { level: '높음', color: 'bg-orange-500' }
+    if (uvIndex <= 10) return { level: '매우 높음', color: 'bg-red-500' }
+    return { level: '위험', color: 'bg-purple-500' }
+  }
 
   if (compact) {
     return (
@@ -196,7 +263,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           </div>
         ) : null}
       </motion.div>
-    );
+    )
   }
 
   return (
@@ -210,10 +277,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           <div className="flex items-center gap-2">
             {lastUpdated && (
               <span className="text-xs text-gray-500">
-                {lastUpdated.toLocaleTimeString('ko-KR', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })} 업데이트
+                {lastUpdated.toLocaleTimeString('ko-KR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}{' '}
+                업데이트
               </span>
             )}
             <Button
@@ -231,7 +299,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 
       <CardContent className="space-y-4">
         {loading ? (
-          <motion.div 
+          <motion.div
             className="flex items-center justify-center py-8"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -242,19 +310,14 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             </span>
           </motion.div>
         ) : error ? (
-          <motion.div 
+          <motion.div
             className="text-center py-8"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <div className="text-red-500 mb-2">⚠️</div>
             <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={fetchWeather}
-              className="mt-2"
-            >
+            <Button variant="outline" size="sm" onClick={fetchWeather} className="mt-2">
               다시 시도
             </Button>
           </motion.div>
@@ -269,7 +332,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               <div className="flex items-center gap-4">
                 <motion.div
                   whileHover={{ scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
                 >
                   {getWeatherIcon(weather.condition)}
                 </motion.div>
@@ -277,9 +340,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                   <div className={`text-3xl font-bold ${getTemperatureColor(weather.temperature)}`}>
                     {weather.temperature}°C
                   </div>
-                  <div className="text-gray-600 dark:text-gray-400">
-                    체감 {weather.feelsLike}°C
-                  </div>
+                  <div className="text-gray-600 dark:text-gray-400">체감 {weather.feelsLike}°C</div>
                 </div>
               </div>
               <div className="text-right">
@@ -293,7 +354,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 
             {/* Weather Details */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <motion.div 
+              <motion.div
                 className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3"
                 whileHover={{ scale: 1.02 }}
               >
@@ -304,7 +365,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <div className="font-semibold">{weather.humidity}%</div>
               </motion.div>
 
-              <motion.div 
+              <motion.div
                 className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3"
                 whileHover={{ scale: 1.02 }}
               >
@@ -315,7 +376,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <div className="font-semibold">{weather.windSpeed} m/s</div>
               </motion.div>
 
-              <motion.div 
+              <motion.div
                 className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3"
                 whileHover={{ scale: 1.02 }}
               >
@@ -326,7 +387,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <div className="font-semibold">{weather.visibility} km</div>
               </motion.div>
 
-              <motion.div 
+              <motion.div
                 className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3"
                 whileHover={{ scale: 1.02 }}
               >
@@ -336,9 +397,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{weather.uvIndex}</span>
-                  <Badge 
-                    className={`text-xs ${getUVLevel(weather.uvIndex).color} text-white`}
-                  >
+                  <Badge className={`text-xs ${getUVLevel(weather.uvIndex).color} text-white`}>
                     {getUVLevel(weather.uvIndex).level}
                   </Badge>
                 </div>
@@ -364,9 +423,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                         {day.date}
                       </div>
-                      <div className="mb-2">
-                        {getWeatherIcon(day.condition)}
-                      </div>
+                      <div className="mb-2">{getWeatherIcon(day.condition)}</div>
                       <div className="text-xs">
                         <div className="font-semibold">{day.high}°</div>
                         <div className="text-gray-500">{day.low}°</div>
@@ -380,7 +437,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         ) : null}
       </CardContent>
     </Card>
-  );
-};
+  )
+}
 
-export default WeatherWidget;
+export default WeatherWidget
