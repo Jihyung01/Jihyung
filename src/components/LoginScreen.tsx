@@ -7,7 +7,7 @@ import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { toast } from 'sonner'
 import { login, createDemoUser, setAuthToken, getJSON } from '../api/client'
-import { initiateGoogleLogin, initiateGithubLogin, initiateKakaoLogin } from '../api/oauth'
+import { initiateGoogleLogin, initiateGithubLogin, initiateKakaoLogin, initiateInstagramLogin } from '../api/oauth'
 import { useApp } from '../contexts/AppContext'
 
 interface LoginScreenProps {
@@ -81,7 +81,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     }
   }
 
-  const handleSocialLogin = async (provider: 'google' | 'github' | 'kakao') => {
+  const handleSocialLogin = async (provider: 'google' | 'github' | 'kakao' | 'instagram') => {
     setIsLoading(true);
     toast.loading(`${provider} 로그인 중...`);
     
@@ -96,6 +96,9 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           break;
         case 'kakao':
           await initiateKakaoLogin();
+          break;
+        case 'instagram':
+          await initiateInstagramLogin();
           break;
       }
       // 실제 리다이렉트가 일어나므로 이 코드는 실행되지 않음
@@ -140,7 +143,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           
           <CardContent className="space-y-4">
             {/* Social Login Buttons */}
-            <div className="grid grid-cols-3 gap-2 mb-6">
+            <div className="grid grid-cols-2 gap-2 mb-6">
               <Button
                 type="button"
                 variant="outline"
@@ -170,6 +173,16 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
               >
                 <MessageCircle className="w-4 h-4 mr-1" />
                 카카오
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-purple-500"
+                onClick={() => handleSocialLogin('instagram')}
+                disabled={isLoading}
+              >
+                <MessageCircle className="w-4 h-4 mr-1" />
+                인스타그램
               </Button>
             </div>
 

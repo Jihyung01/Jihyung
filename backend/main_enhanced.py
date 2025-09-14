@@ -32,6 +32,8 @@ import httpx
 from collections import defaultdict
 import re
 import hashlib
+from authlib.integrations.requests_client import OAuth2Session
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -244,6 +246,19 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+# OAuth Configuration
+KAKAO_CLIENT_ID = os.getenv("KAKAO_CLIENT_ID", "")
+KAKAO_CLIENT_SECRET = os.getenv("KAKAO_CLIENT_SECRET", "")
+KAKAO_REDIRECT_URI = os.getenv("KAKAO_REDIRECT_URI", "http://localhost:3000/auth/kakao/callback")
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:3000/auth/google/callback")
+
+INSTAGRAM_CLIENT_ID = os.getenv("INSTAGRAM_CLIENT_ID", "")
+INSTAGRAM_CLIENT_SECRET = os.getenv("INSTAGRAM_CLIENT_SECRET", "")
+INSTAGRAM_REDIRECT_URI = os.getenv("INSTAGRAM_REDIRECT_URI", "http://localhost:3000/auth/instagram/callback")
 
 # Initialize OpenAI
 if OPENAI_API_KEY:
@@ -1462,6 +1477,313 @@ async def kakao_callback(code: str):
                 }
             }
 
+@app.get("/auth/instagram")
+async def instagram_login():
+    """Instagram OAuth login"""
+    instagram_client_id = os.getenv("INSTAGRAM_CLIENT_ID")
+    redirect_uri = os.getenv("INSTAGRAM_REDIRECT_URI", "http://localhost:3000/auth/instagram/callback")
+
+    if not instagram_client_id:
+        raise HTTPException(status_code=500, detail="Instagram OAuth not configured")
+
+    auth_url = (
+        f"https://api.instagram.com/oauth/authorize?"
+        f"client_id={instagram_client_id}&"
+        f"redirect_uri={redirect_uri}&"
+        f"scope=user_profile,user_media&"
+        f"response_type=code"
+    )
+
+    return {"auth_url": auth_url}
+
+@app.post("/auth/instagram/callback")
+async def instagram_callback(code: str):
+    """Handle Instagram OAuth callback"""
+    instagram_client_id = os.getenv("INSTAGRAM_CLIENT_ID")
+    instagram_client_secret = os.getenv("INSTAGRAM_CLIENT_SECRET")
+    redirect_uri = os.getenv("INSTAGRAM_REDIRECT_URI", "http://localhost:3000/auth/instagram/callback")
+
+    if not all([instagram_client_id, instagram_client_secret]):
+        raise HTTPException(status_code=500, detail="Instagram OAuth not configured")
+
+    async with httpx.AsyncClient() as client:
+        # Exchange code for token
+        token_response = await client.post(
+            "https://api.instagram.com/oauth/access_token",
+            data={
+                "client_id": instagram_client_id,
+                "client_secret": instagram_client_secret,
+                "grant_type": "authorization_code",
+                "redirect_uri": redirect_uri,
+                "code": code
+            }
+        )
+
+        if token_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+
+        token_data = token_response.json()
+        access_token = token_data.get("access_token")
+        user_data = token_data.get("user", {})
+
+        # Instagram Basic Display API provides basic user info in the token response
+        instagram_id = str(user_data.get("id"))
+        username = user_data.get("username", "Instagram User")
+
+        if db_pool:
+            async with db_pool.acquire() as connection:
+                # Check if user exists
+                user = await connection.fetchrow(
+                    "SELECT id FROM users WHERE oauth_provider = $1 AND oauth_id = $2",
+                    "instagram", instagram_id
+                )
+
+                if not user:
+                    # Create new user
+                    user_id = await connection.fetchval(
+                        """INSERT INTO users (name, email, oauth_provider, oauth_id, avatar)
+                           VALUES ($1, $2, $3, $4, $5) RETURNING id""",
+                        username, f"{instagram_id}@instagram.local", "instagram", instagram_id, None
+                    )
+                else:
+                    user_id = user['id']
+                    # Update last login
+                    await connection.execute(
+                        "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1",
+                        user_id
+                    )
+        else:
+            # Memory storage for Instagram user
+            user_id = str(uuid.uuid4())
+            memory_storage['users'][user_id] = {
+                'id': user_id,
+                'name': username,
+                'email': f"{instagram_id}@instagram.local",
+                'oauth_provider': 'instagram',
+                'oauth_id': instagram_id,
+                'avatar': None,
+                'created_at': datetime.now(timezone.utc),
+                'last_login': datetime.now(timezone.utc)
+            }
+
+        jwt_token = create_access_token(data={"sub": str(user_id)})
+
+        return {
+            "token": jwt_token,
+            "user": {
+                "id": str(user_id),
+                "name": username,
+                "email": f"{instagram_id}@instagram.local",
+                "avatar": None,
+                "provider": "instagram"
+            }
+        }
+
+# ========== USER PROFILE API ==========
+
+@app.get("/api/profile")
+async def get_profile(current_user: dict = Depends(get_current_user)):
+    """Get current user profile"""
+    try:
+        user_id = current_user['id']
+
+        if db_pool:
+            async with db_pool.acquire() as connection:
+                user = await connection.fetchrow(
+                    """SELECT id, name, email, avatar, bio, preferences, timezone,
+                              oauth_provider, is_premium, created_at, last_login
+                       FROM users WHERE id = $1 AND is_active = TRUE""",
+                    uuid.UUID(user_id)
+                )
+
+                if not user:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                return {
+                    "id": str(user['id']),
+                    "name": user['name'],
+                    "email": user['email'],
+                    "avatar": user['avatar'],
+                    "bio": user['bio'] or "",
+                    "preferences": user['preferences'] or {},
+                    "timezone": user['timezone'] or "UTC",
+                    "oauth_provider": user['oauth_provider'],
+                    "is_premium": user['is_premium'],
+                    "created_at": user['created_at'].isoformat() if user['created_at'] else None,
+                    "last_login": user['last_login'].isoformat() if user['last_login'] else None
+                }
+        else:
+            # Memory storage
+            if user_id in memory_storage['users']:
+                user = memory_storage['users'][user_id]
+                return {
+                    "id": user['id'],
+                    "name": user.get('name', ''),
+                    "email": user.get('email', ''),
+                    "avatar": user.get('avatar', ''),
+                    "bio": user.get('bio', ''),
+                    "preferences": user.get('preferences', {}),
+                    "timezone": user.get('timezone', 'UTC'),
+                    "oauth_provider": user.get('oauth_provider'),
+                    "is_premium": user.get('is_premium', False),
+                    "created_at": user['created_at'].isoformat() if user.get('created_at') else None,
+                    "last_login": user['last_login'].isoformat() if user.get('last_login') else None
+                }
+            else:
+                raise HTTPException(status_code=404, detail="User not found")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get profile: {str(e)}")
+
+@app.put("/api/profile")
+async def update_profile(profile_data: dict, current_user: dict = Depends(get_current_user)):
+    """Update user profile"""
+    try:
+        user_id = current_user['id']
+        now = datetime.now(timezone.utc)
+
+        logger.info(f"👤 Updating profile for user {user_id}")
+
+        if db_pool:
+            async with db_pool.acquire() as connection:
+                # Build dynamic update query
+                update_fields = []
+                values = []
+                param_count = 1
+
+                # Allowed fields for update
+                allowed_fields = ['name', 'bio', 'timezone', 'avatar']
+
+                for field in allowed_fields:
+                    if field in profile_data:
+                        update_fields.append(f"{field} = ${param_count}")
+                        values.append(profile_data[field])
+                        param_count += 1
+
+                # Handle preferences separately (JSON field)
+                if 'preferences' in profile_data:
+                    update_fields.append(f"preferences = ${param_count}")
+                    values.append(json.dumps(profile_data['preferences']))
+                    param_count += 1
+
+                if not update_fields:
+                    raise HTTPException(status_code=400, detail="No fields to update")
+
+                update_fields.append(f"updated_at = CURRENT_TIMESTAMP")
+                values.extend([uuid.UUID(user_id)])
+
+                query = f"""
+                UPDATE users SET {', '.join(update_fields)}
+                WHERE id = ${param_count}
+                RETURNING id, name, email, avatar, bio, preferences, timezone, is_premium
+                """
+
+                updated_user = await connection.fetchrow(query, *values)
+
+                if not updated_user:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+                logger.info(f"✅ Profile updated for user {user_id}")
+
+                return {
+                    "id": str(updated_user['id']),
+                    "name": updated_user['name'],
+                    "email": updated_user['email'],
+                    "avatar": updated_user['avatar'],
+                    "bio": updated_user['bio'] or "",
+                    "preferences": updated_user['preferences'] or {},
+                    "timezone": updated_user['timezone'] or "UTC",
+                    "is_premium": updated_user['is_premium']
+                }
+        else:
+            # Memory storage update
+            if user_id in memory_storage['users']:
+                user = memory_storage['users'][user_id]
+
+                # Update allowed fields
+                allowed_fields = ['name', 'bio', 'timezone', 'avatar', 'preferences']
+                for field in allowed_fields:
+                    if field in profile_data:
+                        user[field] = profile_data[field]
+
+                user['updated_at'] = now
+
+                logger.info(f"✅ Profile updated in memory for user {user_id}")
+
+                return {
+                    "id": user['id'],
+                    "name": user.get('name', ''),
+                    "email": user.get('email', ''),
+                    "avatar": user.get('avatar', ''),
+                    "bio": user.get('bio', ''),
+                    "preferences": user.get('preferences', {}),
+                    "timezone": user.get('timezone', 'UTC'),
+                    "is_premium": user.get('is_premium', False)
+                }
+            else:
+                raise HTTPException(status_code=404, detail="User not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
+
+@app.post("/api/profile/avatar")
+async def upload_avatar(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+    """Upload user avatar"""
+    try:
+        user_id = current_user['id']
+
+        # Validate file type
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+
+        # Limit file size (5MB)
+        file_size = 0
+        content = await file.read()
+        file_size = len(content)
+
+        if file_size > 5 * 1024 * 1024:  # 5MB
+            raise HTTPException(status_code=400, detail="File size must be less than 5MB")
+
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        avatar_filename = f"avatar_{user_id}_{int(datetime.now().timestamp())}.{file_extension}"
+
+        # Save to local storage for now (you can extend this to use S3 or other cloud storage)
+        avatars_dir = "avatars"
+        os.makedirs(avatars_dir, exist_ok=True)
+        avatar_path = os.path.join(avatars_dir, avatar_filename)
+
+        async with aiofiles.open(avatar_path, 'wb') as f:
+            await f.write(content)
+
+        avatar_url = f"/avatars/{avatar_filename}"
+
+        # Update user avatar in database
+        if db_pool:
+            async with db_pool.acquire() as connection:
+                await connection.execute(
+                    "UPDATE users SET avatar = $1 WHERE id = $2",
+                    avatar_url, uuid.UUID(user_id)
+                )
+        else:
+            # Update in memory
+            if user_id in memory_storage['users']:
+                memory_storage['users'][user_id]['avatar'] = avatar_url
+
+        logger.info(f"✅ Avatar uploaded for user {user_id}: {avatar_url}")
+
+        return {"avatar_url": avatar_url, "message": "Avatar uploaded successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to upload avatar: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload avatar: {str(e)}")
+
 # ========== ENHANCED NOTES API ==========
 
 @app.get("/api/notes", response_model=List[NoteResponse])
@@ -2668,17 +2990,21 @@ async def create_calendar_event(
             raise HTTPException(status_code=400, detail="start_at is required")
             
         try:
-            # Handle different date formats
+            # Handle different date formats with timezone awareness
             if 'T' in start_str:
                 start_date = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
             else:
-                start_date = datetime.fromisoformat(start_str)
-                
+                # Add timezone info if missing
+                naive_start = datetime.fromisoformat(start_str)
+                start_date = naive_start.replace(tzinfo=timezone.utc) if naive_start.tzinfo is None else naive_start
+
             if end_str and end_str != start_str:
                 if 'T' in end_str:
                     end_date = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
                 else:
-                    end_date = datetime.fromisoformat(end_str)
+                    # Add timezone info if missing
+                    naive_end = datetime.fromisoformat(end_str)
+                    end_date = naive_end.replace(tzinfo=timezone.utc) if naive_end.tzinfo is None else naive_end
             else:
                 # Default to 1 hour duration
                 end_date = start_date + timedelta(hours=1)
@@ -2691,6 +3017,23 @@ async def create_calendar_event(
         
         if db_pool is not None:
             async with db_pool.acquire() as connection:
+                # Check for duplicate event first
+                duplicate_check = """
+                SELECT id FROM calendar_events
+                WHERE user_id = $1 AND title = $2 AND start_time = $3 AND end_time = $4
+                LIMIT 1
+                """
+                existing_event = await connection.fetchrow(
+                    duplicate_check,
+                    uuid.UUID(current_user['id']),
+                    event_data.get('title', ''),
+                    start_date,
+                    end_date
+                )
+
+                if existing_event:
+                    raise HTTPException(status_code=409, detail="Event with same title, start and end time already exists")
+
                 query = """
                 INSERT INTO calendar_events (id, user_id, title, description, start_time, end_time, location, attendees, created_at, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -5237,54 +5580,183 @@ async def get_calendar_events(
         ]
 
 @app.put("/api/events/{event_id}")
-async def update_calendar_event(event_id: str, event_data: CalendarEventCreate, current_user: dict = Depends(get_current_user)):
+@app.put("/api/calendar/{event_id}")
+async def update_calendar_event(event_id: str, event_data: dict, current_user: dict = Depends(get_current_user)):
     """Update a calendar event"""
-    async with db_pool.acquire() as connection:
-        result = await connection.execute(
-            """UPDATE calendar_events SET 
-               title = $1, description = $2, start_time = $3, end_time = $4,
-               all_day = $5, timezone = $6, color = $7, location = $8,
-               meeting_url = $9, event_type = $10, recurrence_rule = $11,
-               reminder_minutes = $12, attendees = $13, visibility = $14,
-               updated_at = CURRENT_TIMESTAMP
-               WHERE id = $15 AND user_id = $16""",
-            event_data.title, event_data.description, event_data.start, event_data.end,
-            event_data.all_day, event_data.timezone, event_data.color, event_data.location,
-            event_data.meeting_url, event_data.event_type, event_data.recurrence_rule,
-            event_data.reminder_minutes, event_data.attendees, event_data.visibility,
-            uuid.UUID(event_id), current_user['id']
-        )
-        
-        if result == "UPDATE 0":
+    try:
+        logger.info(f"📅 Updating calendar event {event_id}")
+
+        # Parse datetime fields with timezone handling
+        start_str = event_data.get('start_at') or event_data.get('start', '')
+        end_str = event_data.get('end_at') or event_data.get('end', start_str)
+
+        if start_str:
+            try:
+                if 'T' in start_str:
+                    start_date = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+                else:
+                    naive_start = datetime.fromisoformat(start_str)
+                    start_date = naive_start.replace(tzinfo=timezone.utc) if naive_start.tzinfo is None else naive_start
+            except ValueError:
+                start_date = None
+        else:
+            start_date = None
+
+        if end_str:
+            try:
+                if 'T' in end_str:
+                    end_date = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
+                else:
+                    naive_end = datetime.fromisoformat(end_str)
+                    end_date = naive_end.replace(tzinfo=timezone.utc) if naive_end.tzinfo is None else naive_end
+            except ValueError:
+                end_date = None
+        else:
+            end_date = None
+
+        if db_pool is not None:
+            async with db_pool.acquire() as connection:
+                # Build dynamic update query
+                update_fields = []
+                values = []
+                param_count = 1
+
+                if 'title' in event_data:
+                    update_fields.append(f"title = ${param_count}")
+                    values.append(event_data['title'])
+                    param_count += 1
+
+                if 'description' in event_data:
+                    update_fields.append(f"description = ${param_count}")
+                    values.append(event_data['description'])
+                    param_count += 1
+
+                if start_date:
+                    update_fields.append(f"start_time = ${param_count}")
+                    values.append(start_date)
+                    param_count += 1
+
+                if end_date:
+                    update_fields.append(f"end_time = ${param_count}")
+                    values.append(end_date)
+                    param_count += 1
+
+                if 'location' in event_data:
+                    update_fields.append(f"location = ${param_count}")
+                    values.append(event_data['location'])
+                    param_count += 1
+
+                if 'attendees' in event_data:
+                    update_fields.append(f"attendees = ${param_count}")
+                    values.append(json.dumps(event_data['attendees']))
+                    param_count += 1
+
+                update_fields.append(f"updated_at = CURRENT_TIMESTAMP")
+
+                if not update_fields:
+                    raise HTTPException(status_code=400, detail="No fields to update")
+
+                # Add WHERE clause parameters
+                values.extend([uuid.UUID(event_id), uuid.UUID(current_user['id'])])
+                where_params = f"${param_count} AND user_id = ${param_count + 1}"
+
+                query = f"""
+                UPDATE calendar_events SET {', '.join(update_fields)}
+                WHERE id = {where_params}
+                RETURNING *
+                """
+
+                result = await connection.fetchrow(query, *values)
+
+                if not result:
+                    raise HTTPException(status_code=404, detail="Event not found or permission denied")
+
+                logger.info(f"✅ Calendar event {event_id} updated successfully")
+
+                return {
+                    "id": str(result['id']),
+                    "title": result['title'],
+                    "description": result['description'],
+                    "start_at": result['start_time'].isoformat() if result['start_time'] else None,
+                    "end_at": result['end_time'].isoformat() if result['end_time'] else None,
+                    "location": result['location'],
+                    "attendees": json.loads(result['attendees']) if result['attendees'] else [],
+                    "updated_at": result['updated_at'].isoformat() if result['updated_at'] else None
+                }
+        else:
+            # Memory storage update
+            if 'user_events' in memory_storage and current_user['id'] in memory_storage['user_events']:
+                events = memory_storage['user_events'][current_user['id']]
+                for i, event in enumerate(events):
+                    if event['id'] == event_id:
+                        # Update fields
+                        for key, value in event_data.items():
+                            if key in ['title', 'description', 'location', 'attendees']:
+                                events[i][key] = value
+                            elif key in ['start_at', 'start'] and start_date:
+                                events[i]['start_time'] = start_date
+                            elif key in ['end_at', 'end'] and end_date:
+                                events[i]['end_time'] = end_date
+
+                        events[i]['updated_at'] = datetime.now(timezone.utc)
+
+                        return {
+                            "id": event_id,
+                            "title": events[i].get('title', ''),
+                            "description": events[i].get('description', ''),
+                            "start_at": events[i]['start_time'].isoformat() if events[i].get('start_time') else None,
+                            "end_at": events[i]['end_time'].isoformat() if events[i].get('end_time') else None,
+                            "location": events[i].get('location', ''),
+                            "attendees": events[i].get('attendees', []),
+                            "updated_at": events[i]['updated_at'].isoformat()
+                        }
+
             raise HTTPException(status_code=404, detail="Event not found")
-        
-        # Send real-time update
-        await manager.send_personal_message({
-            "type": "event_updated",
-            "data": {"id": event_id, "title": event_data.title}
-        }, current_user['id'])
-        
-        return {"message": "Event updated successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update calendar event {event_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update calendar event: {str(e)}")
 
 @app.delete("/api/events/{event_id}")
+@app.delete("/api/calendar/{event_id}")
 async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_current_user)):
     """Delete a calendar event"""
-    async with db_pool.acquire() as connection:
-        result = await connection.execute(
-            "DELETE FROM calendar_events WHERE id = $1 AND user_id = $2",
-            uuid.UUID(event_id), current_user['id']
-        )
-        
-        if result == "DELETE 0":
-            raise HTTPException(status_code=404, detail="Event not found")
-        
-        # Send real-time update
-        await manager.send_personal_message({
-            "type": "event_deleted",
-            "data": {"id": event_id}
-        }, current_user['id'])
-        
+    try:
+        logger.info(f"🗑️ Deleting calendar event {event_id}")
+
+        if db_pool is not None:
+            async with db_pool.acquire() as connection:
+                result = await connection.execute(
+                    "DELETE FROM calendar_events WHERE id = $1 AND user_id = $2",
+                    uuid.UUID(event_id), uuid.UUID(current_user['id'])
+                )
+
+                if result == "DELETE 0":
+                    raise HTTPException(status_code=404, detail="Event not found or permission denied")
+        else:
+            # Memory storage deletion
+            if 'user_events' in memory_storage and current_user['id'] in memory_storage['user_events']:
+                events = memory_storage['user_events'][current_user['id']]
+                for i, event in enumerate(events):
+                    if event['id'] == event_id:
+                        del events[i]
+                        logger.info(f"✅ Calendar event {event_id} deleted from memory")
+                        return {"message": "Event deleted successfully"}
+
+                raise HTTPException(status_code=404, detail="Event not found")
+            else:
+                raise HTTPException(status_code=404, detail="Event not found")
+
+        logger.info(f"✅ Calendar event {event_id} deleted successfully")
         return {"message": "Event deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete calendar event {event_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete calendar event: {str(e)}")
 
 # ========== ADVANCED AI API ==========
 

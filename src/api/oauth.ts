@@ -45,6 +45,17 @@ export async function initiateKakaoLogin(): Promise<void> {
   }
 }
 
+// 인스타그램 로그인 시작
+export async function initiateInstagramLogin(): Promise<void> {
+  try {
+    const response = await getJSON<{ auth_url: string }>('/auth/instagram');
+    window.location.href = response.auth_url;
+  } catch (error) {
+    console.error('Instagram login initiation failed:', error);
+    throw new Error('인스타그램 로그인을 시작할 수 없습니다');
+  }
+}
+
 // OAuth 콜백 처리 (구글)
 export async function handleGoogleCallback(code: string): Promise<SocialAuthResult> {
   try {
@@ -75,6 +86,17 @@ export async function handleKakaoCallback(code: string): Promise<SocialAuthResul
   } catch (error) {
     console.error('Kakao callback failed:', error);
     throw new Error('카카오 로그인 처리 중 오류가 발생했습니다');
+  }
+}
+
+// OAuth 콜백 처리 (인스타그램)
+export async function handleInstagramCallback(code: string): Promise<SocialAuthResult> {
+  try {
+    const result = await postJSON<SocialAuthResult>('/auth/instagram/callback', { code });
+    return result;
+  } catch (error) {
+    console.error('Instagram callback failed:', error);
+    throw new Error('인스타그램 로그인 처리 중 오류가 발생했습니다');
   }
 }
 
