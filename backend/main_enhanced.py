@@ -34,6 +34,13 @@ import re
 import hashlib
 import base64
 
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Optional imports for OAuth functionality
 try:
     from authlib.integrations.requests_client import OAuth2Session
@@ -41,13 +48,6 @@ try:
 except ImportError:
     logger.warning("authlib not available - OAuth features may be limited")
     AUTHLIB_AVAILABLE = False
-
-# Load environment variables
-load_dotenv()
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Database and Redis connections
 db_pool = None
