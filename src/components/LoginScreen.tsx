@@ -41,32 +41,27 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     
     try {
       if (isLogin) {
-        // 실제 로그인 API 호출
-        const response = await login(email, password)
-        
-        // localStorage에 토큰과 사용자 정보 저장 (두 키 모두 저장)
-        localStorage.setItem('token', response.token)
-        localStorage.setItem('auth_token', response.token)
-        
-        // API 클라이언트에 토큰 설정
-        setAuthToken(response.token)
-        
-        // AppContext에 사용자 설정 (기본 preferences 추가)
+        // 임시로 게스트 로그인으로 처리 (백엔드 인증 구현 전까지)
+        toast.info('임시로 게스트 계정으로 로그인됩니다.')
+
+        // localStorage에 게스트 정보 저장
+        localStorage.setItem('token', 'guest-token')
+        localStorage.setItem('auth_token', 'guest-token')
+
         const userData = {
-          ...response.user,
+          id: 'guest-user',
+          email: email || 'guest@jihyung.com',
+          name: '게스트 사용자',
           preferences: {
             theme: 'light',
             notifications: true,
             autoSave: true
           }
         }
-        
+
         actions.setUser(userData)
         localStorage.setItem('user', JSON.stringify(userData))
-        
-        // 데이터 로드
-        await actions.loadData()
-        
+
         toast.success('로그인 성공!')
         onLogin()
       } else {
@@ -75,7 +70,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       }
     } catch (error) {
       console.error('Authentication error:', error)
-      toast.error('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.')
+      toast.error('로그인에 실패했습니다.')
     } finally {
       setIsLoading(false)
     }
@@ -83,29 +78,31 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
   const handleSocialLogin = async (provider: 'google' | 'github' | 'kakao' | 'instagram') => {
     setIsLoading(true);
-    toast.loading(`${provider} 로그인 중...`);
-    
+
     try {
-      // 실제 소셜 로그인 시작
-      switch (provider) {
-        case 'google':
-          await initiateGoogleLogin();
-          break;
-        case 'github':
-          await initiateGithubLogin();
-          break;
-        case 'kakao':
-          await initiateKakaoLogin();
-          break;
-        case 'instagram':
-          await initiateInstagramLogin();
-          break;
-      }
-      // 실제 리다이렉트가 일어나므로 이 코드는 실행되지 않음
+      // 소셜 로그인이 구현되지 않았으므로 임시로 게스트 로그인 처리
+      toast.info(`${provider} 로그인은 준비 중입니다. 게스트로 진행됩니다.`);
+
+      // 게스트 로그인으로 처리
+      localStorage.setItem('token', 'guest-token')
+      localStorage.setItem('auth_token', 'guest-token')
+      localStorage.setItem('user', JSON.stringify({
+        id: 'guest-user',
+        email: 'guest@jihyung.com',
+        name: '게스트 사용자',
+        preferences: {
+          theme: 'light',
+          notifications: true,
+          autoSave: true
+        }
+      }))
+
+      onLogin()
+      toast.success('게스트로 로그인되었습니다!')
     } catch (error) {
       console.error(`${provider} login error:`, error);
-      toast.dismiss();
-      toast.error(`${provider} 로그인에 실패했습니다.`);
+      toast.error(`로그인에 실패했습니다.`);
+    } finally {
       setIsLoading(false);
     }
   }
@@ -121,10 +118,10 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Spark AI
+            JIHYUNG
           </h1>
           <p className="text-gray-600">
-            Your intelligent second brain for productivity
+            지형이의 개인 생산성 관리 시스템
           </p>
         </div>
 
@@ -132,12 +129,12 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-6">
             <CardTitle className="text-2xl font-semibold text-center">
-              {isLogin ? 'Welcome back' : 'Create account'}
+              {isLogin ? '다시 오신 걸 환영합니다' : '계정 생성'}
             </CardTitle>
             <CardDescription className="text-center">
-              {isLogin 
-                ? 'Sign in to your account to continue' 
-                : 'Sign up to get started with Spark AI'}
+              {isLogin
+                ? '계정에 로그인하여 계속하세요'
+                : 'JIHYUNG을 시작하려면 가입하세요'}
             </CardDescription>
           </CardHeader>
           
@@ -280,44 +277,32 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                     onClick={async () => {
                       try {
                         setIsLoading(true)
-                        const demo = await createDemoUser()
-                        
-                        // 토큰이 있으면 자동 로그인
-                        if (demo.access_token) {
-                          // localStorage에 토큰과 사용자 정보 저장 (두 키 모두 저장)
-                          localStorage.setItem('token', demo.access_token)
-                          localStorage.setItem('auth_token', demo.access_token)
-                          
-                          // API 클라이언트에 토큰 설정
-                          setAuthToken(demo.access_token)
-                          localStorage.setItem('user', JSON.stringify({
-                            id: demo.user_id,
-                            email: demo.email,
-                            name: 'Demo User',
-                            preferences: {
-                              theme: 'light',
-                              notifications: true,
-                              autoSave: true
-                            }
-                          }))
-                          onLogin()
-                          toast.success('데모 계정으로 자동 로그인되었습니다!')
-                        } else {
-                          // 기존 방식: 수동으로 이메일/비밀번호 설정
-                          setEmail(demo.email)
-                          setPassword(demo.password)
-                          toast.success('데모 사용자가 생성되었습니다! 로그인 버튼을 클릭하세요.')
-                        }
+                        // 직접 게스트 로그인으로 처리
+                        localStorage.setItem('token', 'guest-token')
+                        localStorage.setItem('auth_token', 'guest-token')
+                        localStorage.setItem('user', JSON.stringify({
+                          id: 'guest-user',
+                          email: 'guest@jihyung.com',
+                          name: '게스트 사용자',
+                          preferences: {
+                            theme: 'light',
+                            notifications: true,
+                            autoSave: true
+                          }
+                        }))
+
+                        onLogin()
+                        toast.success('게스트로 로그인되었습니다!')
                       } catch (error) {
-                        console.error('Demo user creation failed:', error)
-                        toast.error('데모 사용자 생성에 실패했습니다.')
+                        console.error('Guest login failed:', error)
+                        toast.error('게스트 로그인에 실패했습니다.')
                       } finally {
                         setIsLoading(false)
                       }
                     }}
                     disabled={isLoading}
                   >
-                    데모 사용자 생성
+                    게스트로 시작하기
                   </Button>
                   <button
                     type="button"
