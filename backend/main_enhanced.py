@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from jwt.exceptions import PyJWTError, InvalidTokenError, DecodeError, InvalidSignatureError
 from passlib.context import CryptContext
-import openai
+from openai import OpenAI
 import boto3
 from botocore.exceptions import ClientError
 import logging
@@ -32,8 +32,15 @@ import httpx
 from collections import defaultdict
 import re
 import hashlib
-from authlib.integrations.requests_client import OAuth2Session
 import base64
+
+# Optional imports for OAuth functionality
+try:
+    from authlib.integrations.requests_client import OAuth2Session
+    AUTHLIB_AVAILABLE = True
+except ImportError:
+    logger.warning("authlib not available - OAuth features may be limited")
+    AUTHLIB_AVAILABLE = False
 
 # Load environment variables
 load_dotenv()
@@ -3588,7 +3595,7 @@ async def summarize_text(
         if OPENAI_API_KEY and len(text) > 100:
             try:
                 logger.info(f"🔗 Calling OpenAI API with text length: {len(text)}")
-                client = openai.OpenAI(
+                client = OpenAI(
                     api_key=OPENAI_API_KEY,
                     timeout=30.0  # 30 second timeout
                 )
@@ -3840,7 +3847,7 @@ async def extract_tasks_from_text(
         # Use OpenAI for actual task extraction
         if OPENAI_API_KEY:
             try:
-                client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                client = OpenAI(api_key=OPENAI_API_KEY)
                 
                 prompt = f"""다음 텍스트에서 실행 가능한 작업(task)들을 추출해주세요. 
 각 작업은 다음 JSON 형태로 반환해주세요:
@@ -5689,7 +5696,7 @@ async def ai_chat(request: dict, current_user: dict = Depends(get_current_user))
         if OPENAI_API_KEY:
             try:
                 import openai
-                client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                client = OpenAI(api_key=OPENAI_API_KEY)
                 
                 # Build context from user's data
                 context_parts = []
@@ -5963,7 +5970,7 @@ async def ai_summarize(content: dict, current_user: dict = Depends(get_current_u
         if OPENAI_API_KEY and len(text_content) > 100:
             try:
                 logger.info(f"🔗 Calling OpenAI API with text length: {len(text_content)}")
-                client = openai.OpenAI(
+                client = OpenAI(
                     api_key=OPENAI_API_KEY,
                     timeout=30.0  # 30 second timeout
                 )
@@ -6049,7 +6056,7 @@ async def ai_summarize(content: dict, current_user: dict = Depends(get_current_u
 async def ai_summarize_advanced(content: dict, current_user: dict = Depends(get_current_user)):
     """Advanced AI-powered content summarization"""
     try:
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        client = OpenAI(api_key=OPENAI_API_KEY)
         
         style = content.get("style", "concise")
         text_content = content["content"]
@@ -6124,7 +6131,7 @@ async def ai_generate_tasks(description: dict, current_user: dict = Depends(get_
         return {"tasks": mock_tasks}
     
     try:
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        client = OpenAI(api_key=OPENAI_API_KEY)
         
         prompt = f"""
         Based on the following description, generate actionable tasks. 
@@ -6267,7 +6274,7 @@ async def ai_analyze_productivity(current_user: dict = Depends(get_current_user)
             "recent_activity": [{"date": str(item['date']), "count": item['count'], "type": item['type']} for item in recent_activity]
         }
         
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        client = OpenAI(api_key=OPENAI_API_KEY)
         
         prompt = f"""
         Analyze the following productivity data for user {current_user['name']} and provide insights:
@@ -6336,7 +6343,7 @@ async def ai_smart_suggestions(current_user: dict = Depends(get_current_user)):
                 ORDER BY start_time LIMIT 5
             """, current_user['id'])
         
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        client = OpenAI(api_key=OPENAI_API_KEY)
         
         context = f"""
         User patterns:
