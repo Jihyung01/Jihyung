@@ -267,9 +267,7 @@ INSTAGRAM_CLIENT_ID = os.getenv("INSTAGRAM_CLIENT_ID", "")
 INSTAGRAM_CLIENT_SECRET = os.getenv("INSTAGRAM_CLIENT_SECRET", "")
 INSTAGRAM_REDIRECT_URI = os.getenv("INSTAGRAM_REDIRECT_URI", "http://localhost:3000/auth/instagram/callback")
 
-# Initialize OpenAI
-if OPENAI_API_KEY:
-    openai.api_key = OPENAI_API_KEY
+# OpenAI API key is now used directly in client initialization
 
 # Initialize AWS S3
 if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
@@ -303,7 +301,7 @@ async def init_db():
     try:
         logger.info("🔄 Supabase 데이터베이스 연결 시도...")
         logger.info(f"   연결 URL: {DATABASE_URL[:50]}...")
-        
+
         # URL을 개별 구성요소로 분해해서 연결
         if "lxrzlszthqoufxapdqml" in DATABASE_URL:
             db_pool = await asyncpg.create_pool(
@@ -5695,7 +5693,6 @@ async def ai_chat(request: dict, current_user: dict = Depends(get_current_user))
         # Try OpenAI if configured
         if OPENAI_API_KEY:
             try:
-                import openai
                 client = OpenAI(api_key=OPENAI_API_KEY)
                 
                 # Build context from user's data
