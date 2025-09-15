@@ -17,13 +17,14 @@ import {
   Sparkle
 } from '@phosphor-icons/react'
 
-// 기존 실제 컴포넌트들 import  
+// 기존 실제 컴포넌트들 import
 import CalendarPageUltraModernEnhanced from './components/pages/CalendarPage-UltraModern-Enhanced'
 import DashboardViewUltraModern from './components/DashboardView-UltraModern'
 import SmartAIAssistant from './components/AI/SmartAIAssistant'
 import NotesPageUltraModern from './components/pages/NotesPage-UltraModern'
 import TasksPageUltraModern from './components/pages/TasksPage-UltraModern'
 import { CollaborationPage } from './components/pages/CollaborationPage'
+import { LoginScreen } from './components/LoginScreen'
 
 // 새로 추가된 협업 및 PIP 컴포넌트들
 import SharedWorkspace from './components/Collaboration/SharedWorkspace'
@@ -1468,21 +1469,48 @@ const QuantumLoader = ({ message = "Initializing Quantum AI..." }) => (
 // Main Super Enhanced App Component
 function SuperAISecondBrainApp() {
   // =====================
+  // AUTHENTICATION STATE MANAGEMENT
+  // =====================
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    // Check for authentication token or user data in localStorage
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
+    const user = localStorage.getItem('user_data') || localStorage.getItem('user')
+    return !!(token && user)
+  })
+
+  const handleLogin = useCallback(() => {
+    setIsAuthenticated(true)
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user_data')
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setIsAuthenticated(false)
+  }, [])
+
+  // If not authenticated, show login screen
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />
+  }
+
+  // =====================
   // REAL DATA INTEGRATION - 실제 데이터 통합
   // =====================
-  const { 
-    notes, 
-    tasks, 
-    events, 
-    saveNote, 
-    saveTask, 
-    saveEvent, 
-    updateTask, 
-    deleteTask, 
-    deleteNote, 
-    deleteEvent 
+  const {
+    notes,
+    tasks,
+    events,
+    saveNote,
+    saveTask,
+    saveEvent,
+    updateTask,
+    deleteTask,
+    deleteNote,
+    deleteEvent
   } = useRealDataManager()
-  
+
   const {
     conversation,
     isLoading: aiLoading,
@@ -2101,6 +2129,10 @@ function SuperAISecondBrainApp() {
                   <DropdownMenuItem onClick={() => setSuperUIState(prev => ({ ...prev, isARViewerOpen: true }))}>
                     <Crown className="h-4 w-4 mr-2" />
                     AR Viewer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-500 hover:text-red-600">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    로그아웃
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

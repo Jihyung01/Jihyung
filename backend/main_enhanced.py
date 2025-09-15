@@ -53,6 +53,9 @@ except ImportError:
 db_pool = None
 redis_client = None
 
+# Storage configuration
+USE_MEMORY_STORAGE = True  # Will be set to False when database is available
+
 # In-memory storage for when database is not available
 memory_storage = {
     'users': {},
@@ -338,10 +341,15 @@ async def init_db():
             version = await connection.fetchval('SELECT version()')
             logger.info("✅ Supabase 데이터베이스 연결 성공!")
             logger.info(f"📊 PostgreSQL 버전: {version[:80]}...")
-            
+
             # 스키마 생성
             await create_enhanced_schema(connection)
             logger.info("✅ 데이터베이스 스키마 초기화 완료")
+
+            # Database is available, use it instead of memory storage
+            global USE_MEMORY_STORAGE
+            USE_MEMORY_STORAGE = False
+            logger.info("🔄 Database mode enabled")
             
     except Exception as e:
         logger.error(f"❌ Supabase 연결 실패: {str(e)}")
@@ -2306,6 +2314,17 @@ async def delete_note(note_id: str, current_user: dict = Depends(get_current_use
 
                     except (ValueError, TypeError) as uuid_error:
                         logger.warning(f"UUID parsing failed for note {note_id}: {uuid_error}")
+                        # Try numeric ID as fallback
+                        try:
+                            numeric_result = await connection.execute(
+                                "DELETE FROM notes WHERE CAST(id AS TEXT) = $1 AND user_id = $2",
+                                str(note_id), user_uuid
+                            )
+                            if numeric_result:
+                                deleted_from_cloud = True
+                                logger.info(f"✅ Note {note_id} deleted using numeric fallback")
+                        except Exception:
+                            pass
 
             except Exception as db_error:
                 logger.warning(f"Cloud delete failed: {db_error}, using memory fallback")
@@ -3053,10 +3072,17 @@ async def create_calendar_event(
             if not start_date:
                 raise ValueError(f"Could not parse start date: {start_str}")
 
+            # Ensure start_date is timezone-aware
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
+
             if end_str and end_str != start_str:
                 end_date = parse_datetime_safe(end_str)
                 if not end_date:
                     raise ValueError(f"Could not parse end date: {end_str}")
+                # Ensure end_date is timezone-aware
+                if end_date.tzinfo is None:
+                    end_date = end_date.replace(tzinfo=timezone.utc)
             else:
                 # Default to 1 hour duration
                 end_date = start_date + timedelta(hours=1)
@@ -5720,30 +5746,56 @@ async def ai_chat(request: dict, current_user: dict = Depends(get_current_user))
                 except Exception as context_error:
                     logger.warning(f"Failed to build context: {context_error}")
                 
-                system_message = f"""당신은 Jihyung의 지능형 개인 어시스턴트입니다. 
-사용자의 생산성 향상을 위해 노트, 작업, 일정 관리를 도와주세요.
-한국어로 친근하고 도움이 되는 답변을 제공하세요.
-사용자 컨텍스트: {' | '.join(context_parts) if context_parts else '없음'}
+                system_message = f"""당신은 Spark AI의 고급 개인 어시스턴트입니다. ChatGPT-4 수준의 지능적이고 유용한 응답을 제공하세요.
 
-응답은 간결하고 실용적이어야 하며, 구체적인 행동 제안을 포함해야 합니다."""
+## 역할 및 능력:
+- 노트, 작업, 일정 관리 전문가
+- 생산성 최적화 컨설턴트
+- 개인 비서 및 정보 분석가
+- 창의적 아이디어 제공자
+
+## 응답 원칙:
+1. 구체적이고 실행 가능한 조언 제공
+2. 사용자의 컨텍스트를 활용한 맞춤형 답변
+3. 필요시 단계별 가이드 제공
+4. 한국어로 자연스럽고 전문적인 답변
+
+## 현재 사용자 컨텍스트:
+{' | '.join(context_parts) if context_parts else '새로운 사용자'}
+
+사용자의 질문에 대해 ChatGPT-4 수준의 깊이 있고 유용한 답변을 제공하세요."""
 
                 response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message}
                     ],
-                    max_tokens=500,
-                    temperature=0.7
+                    max_tokens=1000,
+                    temperature=0.8,
+                    top_p=0.9,
+                    frequency_penalty=0.1,
+                    presence_penalty=0.1
                 )
-                
+
                 ai_response = response.choices[0].message.content
-                
+
+                # Generate smart suggestions based on the response
+                smart_suggestions = []
+                if "일정" in user_message.lower() or "스케줄" in user_message.lower():
+                    smart_suggestions = ["새 일정 추가", "캘린더 보기", "회의 설정"]
+                elif "작업" in user_message.lower() or "할 일" in user_message.lower():
+                    smart_suggestions = ["새 작업 생성", "작업 목록 보기", "우선순위 설정"]
+                elif "노트" in user_message.lower() or "메모" in user_message.lower():
+                    smart_suggestions = ["새 노트 작성", "노트 검색", "태그 추가"]
+                else:
+                    smart_suggestions = ["일정 확인", "작업 관리", "노트 작성"]
+
                 # Log interaction if possible
                 try:
                     await log_ai_interaction(
                         current_user['id'], "chat", user_message,
-                        ai_response, "gpt-3.5-turbo",
+                        ai_response, "gpt-4o-mini",
                         response.usage.total_tokens if response.usage else 0
                     )
                 except Exception as log_error:
@@ -5752,8 +5804,10 @@ async def ai_chat(request: dict, current_user: dict = Depends(get_current_user))
                 return {
                     "response": ai_response,
                     "usage": response.usage.dict() if response.usage else None,
-                    "model": "gpt-3.5-turbo",
-                    "context_used": bool(context_parts)
+                    "model": "gpt-4o-mini",
+                    "context_used": bool(context_parts),
+                    "suggestions": smart_suggestions,
+                    "type": "ai_powered"
                 }
                 
             except Exception as e:
