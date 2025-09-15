@@ -25,6 +25,7 @@ import NotesPageUltraModern from './components/pages/NotesPage-UltraModern'
 import TasksPageUltraModern from './components/pages/TasksPage-UltraModern'
 import { CollaborationPage } from './components/pages/CollaborationPage'
 import { LoginScreen } from './components/LoginScreen'
+import { AppProvider } from './contexts/AppContext'
 
 // 새로 추가된 협업 및 PIP 컴포넌트들
 import SharedWorkspace from './components/Collaboration/SharedWorkspace'
@@ -2589,20 +2590,22 @@ function SuperApp() {
         )}
       >
         <QueryClientProvider client={superQueryClient}>
-          <SuperAISecondBrainApp />
-          <Toaster 
-            position="top-right"
-            expand={true}
-            richColors
-            closeButton
-            toastOptions={{
-              style: {
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(219, 39, 119, 0.1))',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(139, 92, 246, 0.2)',
-              }
-            }}
-          />
+          <AppProvider>
+            <SuperAISecondBrainApp />
+            <Toaster
+              position="top-right"
+              expand={true}
+              richColors
+              closeButton
+              toastOptions={{
+                style: {
+                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(219, 39, 119, 0.1))',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                }
+              }}
+            />
+          </AppProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     )

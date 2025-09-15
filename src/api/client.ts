@@ -312,7 +312,7 @@ export const login = (email: string, password: string) =>
   postJSON<{ token: string; user: any }>('/auth/login', { email, password })
 
 export const createDemoUser = () =>
-  postJSON<{ access_token?: string; email: string; password: string; user_id?: string }>('/auth/demo-user')
+  postJSON<{ access_token?: string; email: string; password: string; user_id?: string }>('/auth/create-demo-user')
 
 export const setAuthToken = (token: string) => {
   config.token = token
