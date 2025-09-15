@@ -307,6 +307,18 @@ export const getAIInsights = (data: any) =>
 export const aiSummarize = (content: string, type?: string) =>
   postJSON<{ summary: string }>('/ai/summarize', { content, type })
 
+// Authentication
+export const login = (email: string, password: string) =>
+  postJSON<{ token: string; user: any }>('/auth/login', { email, password })
+
+export const createDemoUser = () =>
+  postJSON<{ access_token?: string; email: string; password: string; user_id?: string }>('/auth/demo-user')
+
+export const setAuthToken = (token: string) => {
+  config.token = token
+  config.useAuth = true
+}
+
 export default {
   healthCheck,
   listNotes,
@@ -334,5 +346,8 @@ export default {
   transcribeAudio,
   chatWithAI,
   getAIInsights,
-  aiSummarize
+  aiSummarize,
+  login,
+  createDemoUser,
+  setAuthToken
 }
