@@ -2349,7 +2349,10 @@ function SuperAISecondBrainApp() {
         
         {/* Super Command Palette */}
         <Dialog open={superUIState.isCommandPaletteOpen} onOpenChange={(open) => setSuperUIState(prev => ({ ...prev, isCommandPaletteOpen: open }))}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl" aria-describedby="command-palette-description">
+            <div id="command-palette-description" className="sr-only">
+              Quick access to all application features and commands
+            </div>
             <Suspense fallback={<div>Loading command interface...</div>}>
               <CommandPalette
                 isOpen={superUIState.isCommandPaletteOpen}
@@ -2399,6 +2402,9 @@ function SuperAISecondBrainApp() {
                   <Atom className="h-5 w-5" />
                   Quantum Processor Control
                 </DialogTitle>
+                <DialogDescription>
+                  Monitor and control quantum processing capabilities for enhanced AI performance.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">

@@ -77,12 +77,36 @@ interface CollaborationPageProps {
   };
 }
 
-export const CollaborationPage: React.FC<CollaborationPageProps> = ({ 
-  currentUser = { id: 'user-1', name: '사용자', email: 'user@example.com' } 
+export const CollaborationPage: React.FC<CollaborationPageProps> = ({
+  currentUser = { id: 'user-1', name: '사용자', email: 'user@example.com' }
 }) => {
-  const [activeRoom, setActiveRoom] = useState<MeetingRoom | null>(null);
-  const [inCall, setInCall] = useState(false);
-  const [rooms, setRooms] = useState<MeetingRoom[]>([]);
+  // Load state from localStorage
+  const [activeRoom, setActiveRoom] = useState<MeetingRoom | null>(() => {
+    try {
+      const saved = localStorage.getItem('collaboration-active-room');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [inCall, setInCall] = useState(() => {
+    try {
+      const saved = localStorage.getItem('collaboration-in-call');
+      return saved ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+
+  const [rooms, setRooms] = useState<MeetingRoom[]>(() => {
+    try {
+      const saved = localStorage.getItem('collaboration-rooms');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [connectedParticipants, setConnectedParticipants] = useState<Participant[]>([]);
@@ -150,14 +174,31 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
     }
   ];
 
+  // Save state to localStorage when it changes
   useEffect(() => {
-    // Load rooms (mock data for now)
+    localStorage.setItem('collaboration-active-room', JSON.stringify(activeRoom));
+  }, [activeRoom]);
+
+  useEffect(() => {
+    localStorage.setItem('collaboration-in-call', JSON.stringify(inCall));
+  }, [inCall]);
+
+  useEffect(() => {
+    localStorage.setItem('collaboration-rooms', JSON.stringify(rooms));
+  }, [rooms]);
+
+  useEffect(() => {
+    // Load rooms (check localStorage first, then load mock data if empty)
     const loadRooms = async () => {
       try {
         setLoading(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setRooms(mockRooms);
+
+        // If no rooms in localStorage, load mock data
+        if (rooms.length === 0) {
+          // Simulate API call
+          await new Promise(resolve => setTimeout(resolve, 500));
+          setRooms(mockRooms);
+        }
       } catch (error) {
         console.error('Failed to load rooms:', error);
         toast.error('회의실을 불러올 수 없습니다');
@@ -165,7 +206,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
         setLoading(false);
       }
     };
-    
+
     loadRooms();
   }, []);
   

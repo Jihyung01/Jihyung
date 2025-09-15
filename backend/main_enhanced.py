@@ -3695,6 +3695,131 @@ async def summarize_text(
         logger.error(f"❌ Error summarizing text: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to summarize text: {str(e)}")
 
+@app.post("/api/summarize/yt")
+async def summarize_youtube(
+    request_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Summarize YouTube video content"""
+    try:
+        url = request_data.get('url', '')
+
+        if not url:
+            raise HTTPException(status_code=400, detail="YouTube URL is required")
+
+        # Extract video ID from URL
+        video_id = None
+        if 'youtube.com/watch?v=' in url:
+            video_id = url.split('watch?v=')[1].split('&')[0]
+        elif 'youtu.be/' in url:
+            video_id = url.split('youtu.be/')[1].split('?')[0]
+
+        if not video_id:
+            raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+
+        logger.info(f"📹 Extracting transcript for YouTube video: {video_id}")
+
+        try:
+            # Try to use youtube-transcript-api
+            from youtube_transcript_api import YouTubeTranscriptApi
+
+            # Get transcript
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'ko'])
+
+            # Combine transcript text
+            transcript_text = ' '.join([item['text'] for item in transcript_list])
+
+            if not transcript_text:
+                raise Exception("No transcript available")
+
+            logger.info(f"✅ Transcript extracted: {len(transcript_text)} characters")
+
+            # Summarize the transcript
+            if OPENAI_API_KEY:
+                client = OpenAI(api_key=OPENAI_API_KEY)
+
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant that summarizes YouTube video transcripts. Provide a comprehensive summary with key points, main topics, and important insights. Use Korean if the content is in Korean, otherwise use English."
+                        },
+                        {
+                            "role": "user",
+                            "content": f"Please summarize this YouTube video transcript:\n\n{transcript_text[:8000]}"  # Limit to avoid token limits
+                        }
+                    ],
+                    max_tokens=1000,
+                    temperature=0.3
+                )
+
+                summary = response.choices[0].message.content
+
+                # Extract chapters/key points from summary
+                chapters = []
+                if '##' in summary or '1.' in summary:
+                    lines = summary.split('\n')
+                    for line in lines:
+                        if line.strip().startswith(('##', '1.', '2.', '3.', '4.', '5.')):
+                            chapters.append({
+                                'title': line.strip(),
+                                'timestamp': '00:00'  # Mock timestamp
+                            })
+
+                logger.info(f"✅ YouTube video summarized successfully")
+
+                return {
+                    "ok": True,
+                    "video_id": video_id,
+                    "transcript_text": transcript_text[:2000] + "..." if len(transcript_text) > 2000 else transcript_text,
+                    "summary": summary,
+                    "chapters": chapters[:5],  # Limit to 5 chapters
+                    "duration": len(transcript_list) * 5 if transcript_list else 0  # Rough estimate
+                }
+
+            else:
+                # Fallback without OpenAI
+                logger.warning("OpenAI API key not configured, returning transcript only")
+
+                # Create a simple summary
+                words = transcript_text.split()[:200]  # First 200 words
+                simple_summary = ' '.join(words) + "..."
+
+                return {
+                    "ok": True,
+                    "video_id": video_id,
+                    "transcript_text": transcript_text[:2000] + "..." if len(transcript_text) > 2000 else transcript_text,
+                    "summary": simple_summary,
+                    "chapters": [{"title": "Video Content", "timestamp": "00:00"}],
+                    "duration": len(transcript_list) * 5 if transcript_list else 0
+                }
+
+        except ImportError:
+            logger.error("youtube-transcript-api not installed")
+            raise HTTPException(
+                status_code=500,
+                detail="YouTube transcript extraction not available. Please install youtube-transcript-api."
+            )
+
+        except Exception as transcript_error:
+            logger.error(f"Failed to extract transcript: {transcript_error}")
+            # Return mock response for development
+            return {
+                "ok": True,
+                "video_id": video_id,
+                "transcript_text": "Transcript not available for this video.",
+                "summary": "Unable to extract and summarize this YouTube video. The video may not have captions available or may be restricted.",
+                "chapters": [{"title": "Video Summary", "timestamp": "00:00"}],
+                "duration": 0
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error summarizing YouTube video: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to summarize YouTube video: {str(e)}")
+
 @app.post("/api/extract-tasks")
 async def extract_tasks_from_text(
     request_data: dict,
