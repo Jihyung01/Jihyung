@@ -2269,68 +2269,77 @@ async def update_note(note_id: str, note_data: NoteCreate, current_user: dict = 
 
 @app.delete("/api/notes/{note_id}")
 async def delete_note(note_id: str, current_user: dict = Depends(get_current_user)):
-    """Soft delete note (archive it) - cloud storage with memory fallback"""
+    """Delete a note - cloud storage with memory fallback"""
     try:
+        logger.info(f"🗑️ Attempting to delete note {note_id} for user {current_user['id']}")
         user_id = current_user['id']
         deleted_from_cloud = False
-        
+
         # Try cloud database first
         if db_pool:
             try:
                 async with db_pool.acquire() as connection:
-                    # Check if note exists and user has permission
-                    existing_note = await connection.fetchrow(
-                        "SELECT * FROM notes WHERE id = $1 AND user_id = $2",
-                        uuid.UUID(note_id), uuid.UUID(user_id)
-                    )
-                    
-                    if not existing_note:
-                        raise HTTPException(status_code=404, detail="Note not found or access denied")
-                    
-                    # Soft delete (archive)
-                    await connection.execute("""
-                        UPDATE notes SET
-                            is_archived = TRUE,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = $1
-                    """, uuid.UUID(note_id))
-                    
-                    deleted_from_cloud = True
-                    logger.info(f"✅ Note {note_id} archived in cloud")
-                    
-            except HTTPException:
-                raise
+                    # Try to parse as UUID first
+                    try:
+                        note_uuid = parse_id_to_uuid(note_id)
+                        user_uuid = parse_id_to_uuid(user_id)
+
+                        # Check if note exists and user has permission
+                        existing_note = await connection.fetchrow(
+                            "SELECT * FROM notes WHERE id = $1 AND user_id = $2",
+                            note_uuid, user_uuid
+                        )
+
+                        if existing_note:
+                            # Hard delete from database
+                            await connection.execute(
+                                "DELETE FROM notes WHERE id = $1 AND user_id = $2",
+                                note_uuid, user_uuid
+                            )
+                            deleted_from_cloud = True
+                            logger.info(f"✅ Note {note_id} deleted from database")
+
+                    except (ValueError, TypeError) as uuid_error:
+                        logger.warning(f"UUID parsing failed for note {note_id}: {uuid_error}")
+
             except Exception as db_error:
                 logger.warning(f"Cloud delete failed: {db_error}, using memory fallback")
-        
+
         # Fallback to memory storage
         if not deleted_from_cloud:
-            # Convert UUID to string for memory storage lookup
             note_key = str(note_id)
-            
-            # Look in both global and user-specific storage
             note_found = False
-            if 'notes' in memory_storage and note_key in memory_storage['notes']:
-                note = memory_storage['notes'][note_key]
-                if str(note['user_id']) == str(user_id):
-                    note['is_archived'] = True
-                    note['updated_at'] = datetime.utcnow()
-                    note_found = True
-            
-            # Also check user-specific notes
+
+            # Check user-specific notes storage
+            user_notes = memory_storage.get('notes', {}).get(str(user_id), [])
+            original_count = len(user_notes)
+            memory_storage.setdefault('notes', {})[str(user_id)] = [
+                note for note in user_notes
+                if str(note.get('id', '')) != note_key
+            ]
+            new_count = len(memory_storage['notes'][str(user_id)])
+
+            if original_count > new_count:
+                note_found = True
+                logger.info(f"✅ Note {note_id} deleted from memory storage")
+
+            # Also check legacy user_notes structure
             if not note_found and 'user_notes' in memory_storage and str(user_id) in memory_storage['user_notes']:
-                for i, note in enumerate(memory_storage['user_notes'][str(user_id)]):
-                    if str(note.get('id')) == note_key:
-                        note['is_archived'] = True
-                        note['updated_at'] = datetime.utcnow()
-                        note_found = True
-                        break
-            
+                user_notes_legacy = memory_storage['user_notes'][str(user_id)]
+                original_count = len(user_notes_legacy)
+                memory_storage['user_notes'][str(user_id)] = [
+                    note for note in user_notes_legacy
+                    if str(note.get('id', '')) != note_key
+                ]
+                new_count = len(memory_storage['user_notes'][str(user_id)])
+
+                if original_count > new_count:
+                    note_found = True
+                    logger.info(f"✅ Note {note_id} deleted from legacy memory storage")
+
             if not note_found:
                 raise HTTPException(status_code=404, detail="Note not found")
-                
-            logger.info(f"✅ Note {note_id} archived in memory")
-        
+
         # Send real-time update
         try:
             await manager.send_personal_message({
@@ -2339,22 +2348,14 @@ async def delete_note(note_id: str, current_user: dict = Depends(get_current_use
             }, user_id)
         except Exception as e:
             logger.warning(f"Real-time notification failed: {e}")
-        
-        return {"message": "Note archived successfully"}
-        
+
+        return {"message": "Note deleted successfully", "id": note_id}
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error deleting note: {str(e)}")
+        logger.error(f"❌ Error deleting note {note_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to delete note: {str(e)}")
-        
-        # Send real-time update
-        await manager.send_personal_message({
-            "type": "note_deleted",
-            "data": {"id": note_id}
-        }, current_user['id'])
-        
-        return {"message": "Note archived successfully"}
 
 # ========== 🤝 협업 기능 API ==========
 
@@ -2917,27 +2918,45 @@ async def get_calendar_events(
                         "type": "event"
                     })
                 
-                # Convert tasks to calendar events
-                for task in tasks_result:
-                    # Convert due_date (date) to datetime for consistency
-                    if task['due_date']:
-                        due_datetime = datetime.combine(task['due_date'], datetime.min.time()).replace(tzinfo=timezone.utc)
-                        task_event = {
-                            "id": f"task-{task['id']}",
-                            "title": f"📋 {task['title']}",
-                            "description": task['description'] or "",
-                            "start_at": due_datetime.isoformat(),
-                            "end_at": due_datetime.isoformat(),
-                            "location": None,
-                            "attendees": [],
-                            "user_id": current_user['id'],
-                            "created_at": task['created_at'].isoformat() if task['created_at'] else None,
-                            "updated_at": task['updated_at'].isoformat() if task['updated_at'] else None,
-                            "type": "task",
-                            "task_id": str(task['id']),
-                            "priority": task['priority']
-                        }
-                        events.append(task_event)
+                # Convert tasks to calendar events (only if user hasn't disabled this feature)
+                # Check if tasks should be shown in calendar (default: true for backwards compatibility)
+                show_tasks_in_calendar = True  # This could be a user preference in the future
+
+                if show_tasks_in_calendar:
+                    for task in tasks_result:
+                        # Convert due_date (date) to datetime for consistency
+                        if task['due_date']:
+                            # Check if there's already a calendar event with same title and date to prevent duplicates
+                            due_datetime = datetime.combine(task['due_date'], datetime.min.time()).replace(tzinfo=timezone.utc)
+
+                            # Check for duplicate calendar events with similar title/time
+                            duplicate_found = False
+                            for existing_event in events:
+                                if (existing_event.get('type') == 'event' and
+                                    existing_event.get('title', '').replace('📋 ', '') == task['title'] and
+                                    existing_event.get('start_at') and
+                                    abs((datetime.fromisoformat(existing_event['start_at'].replace('Z', '+00:00')) - due_datetime).total_seconds()) < 3600):  # Within 1 hour
+                                    duplicate_found = True
+                                    logger.info(f"🔄 Skipping duplicate task-event for '{task['title']}' - calendar event already exists")
+                                    break
+
+                            if not duplicate_found:
+                                task_event = {
+                                    "id": f"task-{task['id']}",
+                                    "title": f"📋 {task['title']}",
+                                    "description": task['description'] or "",
+                                    "start_at": due_datetime.isoformat(),
+                                    "end_at": due_datetime.isoformat(),
+                                    "location": None,
+                                    "attendees": [],
+                                    "user_id": current_user['id'],
+                                    "created_at": task['created_at'].isoformat() if task['created_at'] else None,
+                                    "updated_at": task['updated_at'].isoformat() if task['updated_at'] else None,
+                                    "type": "task",
+                                    "task_id": str(task['id']),
+                                    "priority": task['priority']
+                                }
+                                events.append(task_event)
                 
                 logger.info(f"✅ Found {len(events)} calendar events/tasks")
                 return events
@@ -2982,29 +3001,57 @@ async def create_calendar_event(
         event_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         
-        # Parse dates safely
-        start_str = event_data.get('start_at') or event_data.get('start', '')
-        end_str = event_data.get('end_at') or event_data.get('end', start_str)
+        # Parse dates safely - handle multiple field names
+        start_str = event_data.get('start_at') or event_data.get('start') or event_data.get('start_time', '')
+        end_str = event_data.get('end_at') or event_data.get('end') or event_data.get('end_time', start_str)
         
         if not start_str:
             raise HTTPException(status_code=400, detail="start_at is required")
             
         try:
-            # Handle different date formats with timezone awareness
-            if 'T' in start_str:
-                start_date = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
-            else:
-                # Add timezone info if missing
-                naive_start = datetime.fromisoformat(start_str)
-                start_date = naive_start.replace(tzinfo=timezone.utc) if naive_start.tzinfo is None else naive_start
+            # Enhanced datetime parsing with timezone awareness
+            def parse_datetime_safe(date_str: str) -> datetime:
+                """Safely parse datetime string with timezone handling"""
+                if not date_str:
+                    return None
+
+                # Handle ISO format with Z
+                if date_str.endswith('Z'):
+                    return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+
+                # Handle ISO format with timezone
+                if '+' in date_str or date_str.count('-') > 2:
+                    try:
+                        return datetime.fromisoformat(date_str)
+                    except ValueError:
+                        pass
+
+                # Handle naive datetime - assume UTC
+                try:
+                    naive_dt = datetime.fromisoformat(date_str.replace('T', ' '))
+                    return naive_dt.replace(tzinfo=timezone.utc)
+                except ValueError:
+                    pass
+
+                # Try parsing as date only
+                try:
+                    date_only = datetime.strptime(date_str, '%Y-%m-%d')
+                    return date_only.replace(tzinfo=timezone.utc)
+                except ValueError:
+                    pass
+
+                # Last resort - try fromisoformat directly
+                naive_dt = datetime.fromisoformat(date_str)
+                return naive_dt.replace(tzinfo=timezone.utc) if naive_dt.tzinfo is None else naive_dt
+
+            start_date = parse_datetime_safe(start_str)
+            if not start_date:
+                raise ValueError(f"Could not parse start date: {start_str}")
 
             if end_str and end_str != start_str:
-                if 'T' in end_str:
-                    end_date = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
-                else:
-                    # Add timezone info if missing
-                    naive_end = datetime.fromisoformat(end_str)
-                    end_date = naive_end.replace(tzinfo=timezone.utc) if naive_end.tzinfo is None else naive_end
+                end_date = parse_datetime_safe(end_str)
+                if not end_date:
+                    raise ValueError(f"Could not parse end date: {end_str}")
             else:
                 # Default to 1 hour duration
                 end_date = start_date + timedelta(hours=1)
@@ -3321,109 +3368,6 @@ async def create_event_alias(
         logger.error(f"❌ Error creating calendar event: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
 
-@app.post("/api/calendar/events")
-async def create_calendar_event(
-    event_data: dict,
-    current_user: dict = Depends(get_current_user)
-):
-    """Create a new calendar event"""
-    try:
-        logger.info(f"📅 Creating calendar event for user {current_user['id']}")
-        logger.info(f"Enhanced API: Creating calendar event with data: {event_data}")
-        
-        if db_pool is not None:
-            async with db_pool.acquire() as conn:
-                # First ensure user exists - create if doesn't exist
-                user_id_str = current_user['id']
-                try:
-                    user_id = uuid.UUID(user_id_str)
-                except ValueError:
-                    # If user ID is not a valid UUID, create a new one
-                    user_id = uuid.uuid4()
-                    logger.info(f"🔄 Generated new UUID for user: {user_id}")
-                
-                user_check_query = "SELECT id FROM users WHERE id = $1"
-                user_exists = await conn.fetchrow(user_check_query, user_id)
-                
-                if not user_exists:
-                    create_user_query = """
-                    INSERT INTO users (id, name, email, created_at, updated_at) 
-                    VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """
-                    await conn.execute(create_user_query, user_id, "Demo User", "demo@example.com")
-                    logger.info(f"✅ Created new user: {user_id}")
-                
-                # Create calendar event
-                event_id = uuid.uuid4()
-                start_time = event_data.get("start_at") or event_data.get("start")
-                end_time = event_data.get("end_at") or event_data.get("end") or start_time
-                
-                insert_query = """
-                INSERT INTO calendar_events (
-                    id, user_id, title, description, start_time, end_time, 
-                    location, attendees, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                RETURNING id, title, description, start_time, end_time, location, attendees, created_at, updated_at
-                """
-                
-                attendees_json = json.dumps(event_data.get("attendees", []))
-                
-                result = await conn.fetchrow(
-                    insert_query,
-                    event_id,
-                    user_id,
-                    event_data.get("title", "New Event"),
-                    event_data.get("description", ""),
-                    start_time,
-                    end_time,
-                    event_data.get("location"),
-                    attendees_json
-                )
-                
-                if result:
-                    event_dict = {
-                        "id": result['id'],
-                        "title": result['title'],
-                        "description": result['description'],
-                        "start_at": result['start_time'].isoformat() if result['start_time'] else None,
-                        "end_at": result['end_time'].isoformat() if result['end_time'] else None,
-                        "location": result['location'],
-                        "attendees": json.loads(result['attendees']) if result['attendees'] else [],
-                        "user_id": user_id,
-                        "created_at": result['created_at'].isoformat(),
-                        "updated_at": result['updated_at'].isoformat()
-                    }
-                    logger.info(f"✅ Calendar event created successfully: {event_dict}")
-                    return event_dict
-                
-        # Fallback to memory storage
-        event_id = str(uuid.uuid4())
-        event = {
-            "id": event_id,
-            "title": event_data.get("title", "New Event"),
-            "description": event_data.get("description", ""),
-            "start_at": event_data.get("start_at") or event_data.get("start"),
-            "end_at": event_data.get("end_at") or event_data.get("end"),
-            "location": event_data.get("location"),
-            "attendees": event_data.get("attendees", []),
-            "user_id": current_user['id'],
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
-        }
-        
-        # memory_storage의 user_events에 추가
-        if 'user_events' not in memory_storage:
-            memory_storage['user_events'] = {}
-        if current_user['id'] not in memory_storage['user_events']:
-            memory_storage['user_events'][current_user['id']] = []
-        
-        memory_storage['user_events'][current_user['id']].append(event)
-        logger.info(f"✅ Calendar event created in memory: {event}")
-        return event
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to create calendar event: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
 
 
 # ============== AI & Auto Scheduling Endpoints ==============
@@ -4624,17 +4568,17 @@ async def delete_task(
 ):
     """Delete a task"""
     try:
-        task_uuid = parse_id(task_id)
-        
+        task_uuid = parse_id_to_uuid(task_id)
+
         logger.info(f"🗑️ Deleting task {task_uuid} for user {current_user['id']}")
-        
+
         if USE_MEMORY_STORAGE:
             # Delete from memory storage
             user_tasks = memory_storage['tasks'].get(str(current_user['id']), [])
             original_count = len(user_tasks)
             memory_storage['tasks'][str(current_user['id'])] = [
-                task for task in user_tasks 
-                if parse_id(task['id']) != task_uuid
+                task for task in user_tasks
+                if parse_id_to_uuid(task['id']) != task_uuid
             ]
             new_count = len(memory_storage['tasks'][str(current_user['id'])])
             
@@ -4932,86 +4876,6 @@ async def update_note(
         logger.error(f"Exception details: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to update note: {str(e)}")
 
-@app.delete("/api/notes/{note_id}")
-async def delete_note(note_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete a note with enhanced UUID and legacy ID support"""
-    try:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error updating note {note_id}: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Failed to update note: {str(e)}")
-
-
-@app.delete("/api/notes/{note_id}")
-async def delete_note(
-    note_id: str, 
-    current_user: dict = Depends(get_current_user)
-):
-    """Delete a note"""
-    try:
-        logger.info(f"🗑️ Attempting to delete note {note_id} for user {current_user['id']}")
-        
-        # First try to find the note using the provided ID directly (for backwards compatibility)
-        # This handles both UUID and legacy numeric IDs
-        note_found = False
-        
-        if db_pool is not None:
-            async with db_pool.acquire() as conn:
-                # Try direct UUID lookup first
-                try:
-                    note_uuid = uuid.UUID(note_id) if '-' in note_id else None
-                    if note_uuid:
-                        query = "DELETE FROM notes WHERE id = $1 AND user_id = $2 RETURNING id"
-                        result = await conn.fetch(query, note_uuid, uuid.UUID(current_user['id']))
-                        if result:
-                            note_found = True
-                            logger.info(f"✅ Note {note_uuid} deleted from database")
-                except (ValueError, TypeError):
-                    # Not a valid UUID, continue with other methods
-                    pass
-                
-                # If not found by UUID, try to find by searching all user notes 
-                # This handles legacy numeric IDs or other formats
-                if not note_found:
-                    logger.warning(f"Cloud delete failed: badly formed hexadecimal UUID string, using memory fallback")
-                    # Delete from memory storage as fallback
-                    user_notes = memory_storage.get('notes', {}).get(str(current_user['id']), [])
-                    original_count = len(user_notes)
-                    memory_storage.setdefault('notes', {})[str(current_user['id'])] = [
-                        note for note in user_notes 
-                        if str(note.get('id', '')) != str(note_id)
-                    ]
-                    new_count = len(memory_storage['notes'][str(current_user['id'])])
-                    
-                    if original_count > new_count:
-                        note_found = True
-                        logger.info(f"✅ Note {note_id} deleted from memory storage")
-        else:
-            # Pure memory storage mode
-            user_notes = memory_storage.get('notes', {}).get(str(current_user['id']), [])
-            original_count = len(user_notes)
-            memory_storage.setdefault('notes', {})[str(current_user['id'])] = [
-                note for note in user_notes 
-                if str(note.get('id', '')) != str(note_id)
-            ]
-            new_count = len(memory_storage['notes'][str(current_user['id'])])
-            
-            if original_count > new_count:
-                note_found = True
-                logger.info(f"✅ Note {note_id} deleted from memory storage")
-        
-        if not note_found:
-            raise HTTPException(status_code=404, detail="Note not found")
-        
-        return {"message": "Note deleted successfully", "id": note_id}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error deleting note {note_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete note: {str(e)}")
 
 
 # Calendar endpoints  
@@ -5055,125 +4919,6 @@ async def get_calendar_events(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Failed to retrieve calendar events: {str(e)}")
 
 
-@app.post("/api/calendar")
-async def create_calendar_event(
-    event_data: dict,
-    current_user: dict = Depends(get_current_user)
-):
-    """Create a new calendar event"""
-    try:
-        event_id = uuid.uuid4()
-        now = datetime.now(timezone.utc)
-        
-        logger.info(f"📅 Creating calendar event for user {current_user['id']}")
-        logger.info(f"Event data received: {event_data}")
-        
-        # Parse datetime strings - handle both field name formats
-        start_str = event_data.get('start_time') or event_data.get('start') or event_data.get('start_at')
-        end_str = event_data.get('end_time') or event_data.get('end') or event_data.get('end_at')
-        
-        if not start_str:
-            raise HTTPException(status_code=400, detail="Start time is required")
-        if not end_str:
-            raise HTTPException(status_code=400, detail="End time is required")
-            
-        # Handle timezone parsing more robustly
-        try:
-            if 'T' in start_str:
-                start_time = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
-            else:
-                # Handle date-only format
-                start_time = datetime.fromisoformat(f"{start_str}T00:00:00+00:00")
-                
-            if 'T' in end_str:
-                end_time = datetime.fromisoformat(end_str.replace('Z', '+00:00'))
-            else:
-                # Handle date-only format
-                end_time = datetime.fromisoformat(f"{end_str}T23:59:59+00:00")
-        except ValueError as e:
-            logger.error(f"Failed to parse datetime: start='{start_str}', end='{end_str}', error={e}")
-            raise HTTPException(status_code=400, detail=f"Invalid datetime format: {str(e)}")
-        
-        if USE_MEMORY_STORAGE:
-            # Create event in memory storage
-            event = {
-                "id": str(event_id),
-                "title": event_data.get('title', ''),
-                "description": event_data.get('description', ''),
-                "start_time": start_time,
-                "end_time": end_time,
-                "location": event_data.get('location', ''),
-                "attendees": event_data.get('attendees', []),
-                "user_id": str(current_user['id']),
-                "created_at": now,
-                "updated_at": now,
-                "type": "event"
-            }
-            
-            if str(current_user['id']) not in memory_storage['events']:
-                memory_storage['events'][str(current_user['id'])] = []
-            memory_storage['events'][str(current_user['id'])].append(event)
-            
-            logger.info(f"✅ Event {event_id} created in memory storage")
-            
-            # Return the event with string datetime for JSON serialization
-            return {
-                "id": event["id"],
-                "title": event["title"],
-                "description": event["description"],
-                "start_time": event["start_time"].isoformat(),
-                "end_time": event["end_time"].isoformat(),
-                "location": event["location"],
-                "attendees": event["attendees"],
-                "user_id": event["user_id"],
-                "created_at": event["created_at"].isoformat(),
-                "updated_at": event["updated_at"].isoformat(),
-                "type": "event"
-            }
-        
-        else:
-            # Create event in database
-            query = """
-                INSERT INTO calendar_events (
-                    id, title, description, start_time, end_time, 
-                    location, attendees, user_id, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                RETURNING *
-            """
-            
-            event = await database.fetch_one(
-                query,
-                event_id,
-                event_data.get('title', ''),
-                event_data.get('description', ''),
-                start_time,
-                end_time,
-                event_data.get('location', ''),
-                event_data.get('attendees', []),
-                current_user['id'],
-                now,
-                now
-            )
-            
-            logger.info(f"✅ Event {event_id} created in database")
-            
-            return {
-                "id": str(event['id']),
-                "title": event['title'],
-                "description": event['description'],
-                "start_time": event['start_time'].isoformat(),
-                "end_time": event['end_time'].isoformat(),
-                "location": event['location'],
-                "attendees": event['attendees'],
-                "user_id": str(event['user_id']),
-                "created_at": event['created_at'].isoformat(),
-                "updated_at": event['updated_at'].isoformat(),
-                "type": "event"
-            }
-            
-    except Exception as e:
-        logger.error(f"❌ Failed to create calendar event: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create calendar event: {str(e)}")
 
 
 @app.post("/api/events")
