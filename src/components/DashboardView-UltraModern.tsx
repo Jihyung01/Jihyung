@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
 import { Separator } from './ui/separator';
-import { 
+import {
   Brain,
   Calendar,
   FileText,
@@ -44,10 +44,25 @@ import {
   Coffee,
   Sun,
   Moon,
-  X
+  X,
+  Mic,
+  Network,
+  Smile
 } from 'lucide-react';
 import { format, isToday, isTomorrow, isThisWeek, startOfWeek, endOfWeek, addDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
+
+// Import new advanced feature components
+import { HabitTracker } from './habits/HabitTracker';
+import { VoiceCommandInterface } from './voice/VoiceCommandInterface';
+import { EmotionAnalyticsDashboard } from './analytics/EmotionAnalyticsDashboard';
+import { KnowledgeGraphVisualization } from './graph/KnowledgeGraphVisualization';
+
+// Import services
+import { habitTrackingService } from '../services/HabitTrackingService';
+import { voiceCommandService } from '../services/VoiceCommandService';
+import { emotionAnalyticsService } from '../services/EmotionAnalyticsService';
+import { biometricTrackingService } from '../services/BiometricTrackingService';
 import { toast } from 'sonner';
 import enhancedAPI, { type Note, type Task, type CalendarEvent } from '@/lib/enhanced-api.ts';
 import SmartAIAssistant from './AI/SmartAIAssistant';
