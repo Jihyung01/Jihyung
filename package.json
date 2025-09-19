@@ -1,7 +1,7 @@
 {
-    "name": "spark-ai",
-    "productName": "Spark AI",
-    "description": "Your intelligent second brain for productivity",
+    "name": "jihyung",
+    "productName": "JIHYUNG",
+    "description": "지형이의 개인 생산성 관리 시스템",
     "author": "Your Name <your.email@example.com>",
     "homepage": "https://github.com/yourusername/spark-ai",
     "private": true,

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate PWA Icons</title>
+</head>
+<body>
+    <canvas id="canvas192" width="192" height="192" style="border: 1px solid #ccc; margin: 10px;"></canvas>
+    <canvas id="canvas512" width="512" height="512" style="border: 1px solid #ccc; margin: 10px;"></canvas>
+
+    <div>
+        <button onclick="download('canvas192', 'icon-192.png')">Download 192x192</button>
+        <button onclick="download('canvas512', 'icon-512.png')">Download 512x512</button>
+    </div>
+
+    <script>
+        function generateIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#3b82f6');
+            gradient.addColorStop(1, '#1e40af');
+
+            // Draw background
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            // Draw border
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = size * 0.02;
+            ctx.strokeRect(0, 0, size, size);
+
+            // Draw letter J
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.6}px Inter, Arial, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('J', size * 0.5, size * 0.45);
+
+            // Draw subtitle
+            ctx.font = `${size * 0.08}px Inter, Arial, sans-serif`;
+            ctx.fillText('JIHYUNG', size * 0.5, size * 0.85);
+
+            // Draw accent dots
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(size * 0.75, size * 0.3, size * 0.03, 0, 2 * Math.PI);
+            ctx.fill();
+
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(size * 0.75, size * 0.45, size * 0.025, 0, 2 * Math.PI);
+            ctx.fill();
+
+            ctx.fillStyle = '#d97706';
+            ctx.beginPath();
+            ctx.arc(size * 0.75, size * 0.6, size * 0.02, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function download(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Generate icons
+        generateIcon('canvas192', 192);
+        generateIcon('canvas512', 512);
+    </script>
+</body>
+</html>
