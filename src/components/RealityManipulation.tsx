@@ -9,7 +9,12 @@ interface RealityState {
   manipulationLevel: number
 }
 
-export const RealityManipulationSystem: React.FC = () => {
+interface RealityManipulationSystemProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const RealityManipulationSystem: React.FC<RealityManipulationSystemProps> = ({ isOpen = true, onClose }) => {
   const [reality, setReality] = useState<RealityState>({
     dimension: 3,
     stability: 100,

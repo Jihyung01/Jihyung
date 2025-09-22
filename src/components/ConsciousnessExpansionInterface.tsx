@@ -9,7 +9,12 @@ interface ConsciousnessState {
   awareness: number
 }
 
-export const ConsciousnessExpansionInterface: React.FC = () => {
+interface ConsciousnessExpansionInterfaceProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const ConsciousnessExpansionInterface: React.FC<ConsciousnessExpansionInterfaceProps> = ({ isOpen = true, onClose }) => {
   const [consciousness, setConsciousness] = useState<ConsciousnessState>({
     level: 1,
     dimensions: 3,

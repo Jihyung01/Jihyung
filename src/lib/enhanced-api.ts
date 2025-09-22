@@ -1,65 +1,12 @@
 // Enhanced API Client for Real Functionality
 import * as api from '@/api/client';
+// Import unified types for consistency
+import { Note as UnifiedNote, Task as UnifiedTask, CalendarEvent as UnifiedCalendarEvent } from '../types/unified';
 
-export interface Note {
-  id: number;
-  title: string;
-  content: string;
-  tags: string[];
-  created_at: string;
-  updated_at: string;
-  user_id: number;
-  version: number;
-  is_archived: boolean;
-  // Additional fields for enhanced functionality
-  folder?: string;
-  color?: string;
-  is_pinned?: boolean;
-  content_type?: string;
-  type?: string;
-}
-
-export interface Task {
-  id: number;
-  title: string;
-  description?: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  priority: 'low' | 'medium' | 'high';
-  energy: number;
-  due_at?: string;
-  due_date?: string; // Keep for backward compatibility
-  completed_at?: string;
-  created_at: string;
-  updated_at: string;
-  user_id: number;
-  parent_id?: number;
-  note_id?: number;
-  // Additional fields for enhanced functionality
-  project_id?: number;
-  tags?: string[];
-  category?: string;
-  location?: string;
-}
-
-export interface CalendarEvent {
-  id: number | string;
-  title: string;
-  description?: string;
-  start_at: string;
-  end_at: string;
-  start?: string; // For backward compatibility
-  end?: string; // For backward compatibility
-  due_at?: string; // For task conversion
-  location?: string;
-  attendees?: string[];
-  color?: string;
-  created_at: string;
-  updated_at: string;
-  user_id: number;
-  task_id?: number;
-  type?: 'event' | 'task';
-  priority?: 'low' | 'medium' | 'high';
-}
+// Re-export unified types for API compatibility
+export type Note = UnifiedNote;
+export type Task = UnifiedTask;
+export type CalendarEvent = UnifiedCalendarEvent;
 
 export interface AIInsight {
   type: string;

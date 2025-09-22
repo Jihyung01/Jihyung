@@ -9,7 +9,12 @@ interface Portal {
   coordinates: { x: number; y: number; z: number }
 }
 
-export const DimensionalPortalManager: React.FC = () => {
+interface DimensionalPortalManagerProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const DimensionalPortalManager: React.FC<DimensionalPortalManagerProps> = ({ isOpen = true, onClose }) => {
   const [portals, setPortals] = useState<Portal[]>([
     {
       id: 'portal-1',

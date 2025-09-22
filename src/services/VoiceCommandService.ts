@@ -64,7 +64,7 @@ class VoiceCommandService {
       return
     }
 
-    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     this.recognition = new SpeechRecognition()
 
     this.recognition.continuous = this.settings.continuous
@@ -412,7 +412,7 @@ class VoiceCommandService {
   }
 
   isSupported(): boolean {
-    return !!(window.SpeechRecognition || (window as any).webkitSpeechRecognition)
+    return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
   }
 
   getSettings(): VoiceSettings {

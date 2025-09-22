@@ -9,7 +9,12 @@ interface TimeState {
   quantumTime: boolean
 }
 
-export const TimeManipulationInterface: React.FC = () => {
+interface TimeManipulationInterfaceProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const TimeManipulationInterface: React.FC<TimeManipulationInterfaceProps> = ({ isOpen = true, onClose }) => {
   const [timeState, setTimeState] = useState<TimeState>({
     currentTime: new Date(),
     timeFlow: 1,

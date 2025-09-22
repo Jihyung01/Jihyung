@@ -37,53 +37,21 @@ import { RealityManipulationSystem } from './components/RealityManipulation'
 import { DimensionalPortalManager } from './components/DimensionalPortalManager'
 
 // =====================
-// REAL DATA TYPES - 실제 데이터 타입 정의
+// UNIFIED DATA TYPES - 통합된 데이터 타입 정의
 // =====================
-interface Note {
-  id: string
-  title: string
-  content: string
-  tags: string[]
-  createdAt: string
-  updatedAt: string
-  collaborators?: string[]
-  isEncrypted?: boolean
-}
-
-interface Task {
-  id: string
-  title: string
-  description?: string
-  status: 'todo' | 'in-progress' | 'completed' | 'cancelled'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
-  dueDate?: string
-  tags: string[]
-  createdAt: string
-  updatedAt: string
-  subtasks?: Task[]
-  dependencies?: string[]
-  assignee?: string
-}
-
-interface Event {
-  id: string
-  title: string
-  description?: string
-  startDate: string
-  endDate: string
-  isAllDay: boolean
-  location?: string
-  attendees?: string[]
-  reminders?: { time: number; type: 'popup' | 'email' }[]
-  tags: string[]
-  createdAt: string
-  updatedAt: string
-  recurrence?: {
-    frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
-    interval: number
-    endDate?: string
-  }
-}
+import {
+  Note,
+  Task,
+  CalendarEvent as Event,
+  convertToEnhancedNote,
+  convertToEnhancedTask,
+  convertToEnhancedEvent,
+  SmartAIAssistantProps,
+  CaptureModalProps,
+  AutoSchedulerProps,
+  TrainingData,
+  VoiceRecognitionResult
+} from './types/unified';
 
 // 3D 및 홀로그램 컴포넌트
 const HolographicDisplay = () => {
@@ -1527,9 +1495,9 @@ function SuperAISecondBrainApp() {
     currentWorkspace: null,
     currentDimension: 'reality',
     timelinePosition: Date.now(),
-    notes: notes, // 실제 데이터 사용
-    tasks: tasks, // 실제 데이터 사용
-    events: events as any, // 실제 데이터 사용
+    notes: notes.map(convertToEnhancedNote), // 타입 통합된 데이터 사용
+    tasks: tasks.map(convertToEnhancedTask), // 타입 통합된 데이터 사용
+    events: events.map(convertToEnhancedEvent), // 타입 통합된 데이터 사용
     insights: [],
     projects: [],
     teams: [],
@@ -2333,7 +2301,9 @@ function SuperAISecondBrainApp() {
                             <Button 
                               onClick={() => {
                                 setSuperAppState(prev => ({ ...prev, neuralNetworkTraining: true }))
-                                trainNetwork('notes and tasks data', { epochs: 100 })
+                                trainNetwork('notes and tasks data', [
+                                  { input: 'notes and tasks data', output: 'training complete', context: 'initial training' }
+                                ])
                               }}
                               className="w-full"
                               disabled={superAppState.neuralNetworkTraining}
@@ -2368,12 +2338,11 @@ function SuperAISecondBrainApp() {
               </DialogDescription>
             </DialogHeader>
             <Suspense fallback={<div>Loading capture interface...</div>}>
-              <CaptureModal 
+              <CaptureModal
                 isOpen={superUIState.isCaptureOpen}
                 onClose={() => setSuperUIState(prev => ({ ...prev, isCaptureOpen: false }))}
                 onNoteCreated={handleNoteCreated}
                 onTasksCreated={(tasks) => tasks.forEach(handleTaskCreated)}
-                // quantumEnabled={superAppState.quantumProcessingEnabled}
               />
             </Suspense>
           </DialogContent>
@@ -2411,15 +2380,31 @@ function SuperAISecondBrainApp() {
               </DialogDescription>
             </DialogHeader>
             <Suspense fallback={<div>Initializing AI systems...</div>}>
-              <SmartAIAssistant 
+              <SmartAIAssistant
                 notes={superAppState.notes}
                 tasks={superAppState.tasks}
                 events={superAppState.events}
-                projects={superAppState.projects}
-                mode={superAppState.aiMode}
-                privacyMode={superAppState.privacyMode}
-                // quantumEnabled={superAppState.quantumProcessingEnabled}
-                neuralNetwork={neuralNetwork}
+                onNoteCreated={async (note) => {
+                  const newNote = convertToEnhancedNote(note);
+                  setSuperAppState(prev => ({
+                    ...prev,
+                    notes: [...prev.notes, newNote]
+                  }));
+                }}
+                onTaskCreated={(task) => {
+                  const newTask = convertToEnhancedTask(task);
+                  setSuperAppState(prev => ({
+                    ...prev,
+                    tasks: [...prev.tasks, newTask]
+                  }));
+                }}
+                onEventCreated={(event) => {
+                  const newEvent = convertToEnhancedEvent(event);
+                  setSuperAppState(prev => ({
+                    ...prev,
+                    events: [...prev.events, newEvent]
+                  }));
+                }}
               />
             </Suspense>
           </DialogContent>
@@ -2810,7 +2795,7 @@ function TranscendentApp() {
             />
 
             {/* Reality Manipulation System */}
-            <RealityManipulation
+            <RealityManipulationSystem
               isOpen={superUIState.isRealityHackerOpen}
               onClose={() => setSuperUIState(prev => ({ ...prev, isRealityHackerOpen: false }))}
             />

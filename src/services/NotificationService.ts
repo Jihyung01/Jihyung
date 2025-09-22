@@ -103,7 +103,7 @@ class NotificationService {
           requireInteraction: defaultOptions.requireInteraction,
           silent: defaultOptions.silent,
           data: defaultOptions.data,
-          actions: defaultOptions.actions,
+          // actions: defaultOptions.actions, // Commented out as not supported in standard Notification API
           timestamp: defaultOptions.timestamp
         })
       } else {
@@ -154,7 +154,7 @@ class NotificationService {
       body: notification.body,
       icon: notification.icon,
       tag: notification.tag,
-      data: { ...notification.data, id }
+      data: { ...(notification.data || {}), id }
     })
 
     // Handle recurring notifications
@@ -262,8 +262,8 @@ class NotificationService {
 
   // Save/load scheduled notifications to/from localStorage
   private saveScheduledNotifications(): void {
-    const data = Array.from(this.scheduledNotifications.entries()).map(([id, notification]) => ({
-      id,
+    const data = Array.from(this.scheduledNotifications.entries()).map(([notificationId, notification]) => ({
+      id: notificationId,
       ...notification,
       scheduledTime: notification.scheduledTime.toISOString()
     }))
