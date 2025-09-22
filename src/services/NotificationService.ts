@@ -6,8 +6,8 @@ export interface NotificationOptions {
   tag?: string
   requireInteraction?: boolean
   silent?: boolean
-  data?: any
-  actions?: NotificationAction[]
+  data?: unknown
+  actions?: { action: string; title: string; icon?: string }[]
   timestamp?: number
 }
 

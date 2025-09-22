@@ -1,14 +1,13 @@
-import React, { useState, useEffect, Suspense, lazy, useRef, useCallback, createContext, useContext, useMemo } from 'react'
+import React, { useState, useEffect, Suspense, lazy, useRef, useCallback, createContext, useMemo } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast, Toaster } from 'sonner'
 import { 
-  Calendar, Target, FileText, Users, Settings, Brain, Home, BarChart3, 
-  Zap, Sparkles, Bell, Search, LogOut, ChevronDown, Menu, X, Plus,
-  CheckCircle2, Clock, Star, TrendingUp, Rocket, Shield, Network,
+  Calendar, Target, FileText, Brain, LogOut, Plus,
+  TrendingUp, Rocket, Shield, Network,
   Command, ChartLine, Folder, Settings as Gear, Moon, GitBranch as Graph
 } from 'lucide-react'
 import {

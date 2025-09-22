@@ -29,7 +29,7 @@ export interface VoiceSettings {
 }
 
 class VoiceCommandService {
-  private recognition: SpeechRecognition | null = null
+  private recognition: any | null = null
   private isListening: boolean = false
   private settings: VoiceSettings
   private commands: VoiceCommand[] = []
@@ -87,7 +87,7 @@ class VoiceCommandService {
       }
     }
 
-    this.recognition.onresult = (event: SpeechRecognitionEvent) => {
+    this.recognition.onresult = (event: any) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         if (result.isFinal) {

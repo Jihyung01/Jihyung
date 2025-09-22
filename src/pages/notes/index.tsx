@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, Tag, Edit, Trash2, FileText } from '@phosphor-icons/react'
+import { Plus, Tag, FileText } from '@phosphor-icons/react'
+import { Search, Edit, Trash } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -326,7 +327,7 @@ export default function NotesPage() {
                       편집
                     </Button>
                     <Button size="sm" variant="outline">
-                      <Trash2 className="h-3 w-3" />
+                      <Trash className="h-3 w-3" />
                     </Button>
                   </div>
                 </CardContent>

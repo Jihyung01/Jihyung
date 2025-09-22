@@ -23,7 +23,8 @@ import {
   Calendar,
   Clock,
   Activity,
-  BarChart3
+  BarChart3,
+  X
 } from 'lucide-react';
 import { 
   Dialog,
@@ -530,7 +531,7 @@ export const TeamManagementPage: React.FC = () => {
                                user.role === 'editor' ? '편집자' : '뷰어'}
                             </Badge>
                             {user.id === currentUser.id && (
-                              <Badge variant="outline" size="sm">나</Badge>
+                              <Badge variant="outline">나</Badge>
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground">{user.email}</p>

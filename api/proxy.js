@@ -15,9 +15,10 @@ export default async function handler(req, res) {
     // 백엔드 서버 URL (환경변수에서 가져오거나 기본값 사용)
     const BACKEND_URL = process.env.BACKEND_URL || process.env.VITE_API_URL || 'https://jihyung.onrender.com';
 
-    // 요청 경로에서 /api 제거하고 백엔드로 전달
-    const path = req.url.replace('/api/', '/api/');
-    const backendUrl = `${BACKEND_URL}${path}`;
+    // URL 파라미터에서 path 가져오기
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const path = url.searchParams.get('path') || '';
+    const backendUrl = `${BACKEND_URL}/api/${path}`;
 
     console.log(`[Proxy] ${req.method} ${req.url} -> ${backendUrl}`);
     console.log(`[Proxy] Request body:`, req.body);

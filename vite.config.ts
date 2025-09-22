@@ -1,17 +1,11 @@
 import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import { resolve } from 'path';
 import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [
-    react({
-      // React Fast Refresh 최적화
-      fastRefresh: true,
-      // JSX 런타임 최적화
-      jsxRuntime: 'automatic',
-    }),
+    react(),
     tailwindcss(),
   ],
   server: {
@@ -26,11 +20,11 @@ export default defineConfig({
         secure: false,
         ws: true,
         timeout: 30000,
-        configure: (proxy, options) => {
-          proxy.on('error', (err, req, res) => {
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
             console.log('Proxy error:', err);
           });
-          proxy.on('proxyReq', (proxyReq, req, res) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             console.log('Proxying:', req.method, req.url);
           });
         },
@@ -144,22 +138,4 @@ export default defineConfig({
       }
     }
   },
-  // 프로덕션 빌드 최적화
-  ...(process.env.NODE_ENV === 'production' && {
-    build: {
-      ...this.build,
-      rollupOptions: {
-        ...this.build?.rollupOptions,
-        plugins: [
-          // 번들 크기 분석
-          // bundleAnalyzer({ open: false, filename: 'bundle-report.html' })
-        ],
-        external: [
-          // 외부 종속성 (CDN 사용 시)
-          // 'react',
-          // 'react-dom'
-        ]
-      }
-    }
-  }),
 });
