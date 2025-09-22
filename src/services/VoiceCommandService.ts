@@ -282,7 +282,7 @@ class VoiceCommandService {
 
     // Find matching command
     let matchedCommand: VoiceCommand | null = null
-    let parameters: { [key: string]: any } = {}
+    const parameters: { [key: string]: any } = {}
 
     for (const command of this.commands) {
       const match = transcript.match(command.pattern)

@@ -167,7 +167,7 @@ class HabitTrackingService {
     )
 
     let currentStreak = 0
-    let checkDate = new Date()
+    const checkDate = new Date()
     checkDate.setHours(0, 0, 0, 0)
 
     // Calculate current streak

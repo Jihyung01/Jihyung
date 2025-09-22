@@ -217,11 +217,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({ onEventCreated, onTa
     setQuickEvent({ ...quickEvent, title: '' });
     setShowQuickCreateDialog(true);
   };
-      toast.error('이벤트를 불러오는데 실패했습니다');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const createEvent = async () => {
     try {

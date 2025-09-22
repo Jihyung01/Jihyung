@@ -762,11 +762,6 @@ function App() {
 }
 
 export default App
-                      Quick Actions
-                    </CardTitle>
-                    <CardDescription>
-                      Accelerate your workflow with AI-powered tools
-                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <Button
