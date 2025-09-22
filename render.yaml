@@ -1,0 +1,139 @@
+# Render.com 배포 설정
+services:
+  # FastAPI Backend Service
+  - type: web
+    name: jihyung-backend
+    runtime: python
+    plan: starter # 무료 플랜, 필요시 standard로 업그레이드
+    region: singapore # 아시아 지역 최적화
+    branch: main
+    rootDir: backend
+    buildCommand: |
+      python -m pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: |
+      uvicorn main_enhanced:app --host 0.0.0.0 --port $PORT --workers 2 --timeout-keep-alive 30
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: NODE_ENV
+        value: production
+      - key: PYTHONPATH
+        value: /opt/render/project/src
+      - key: WORKERS
+        value: "2"
+      - key: TIMEOUT
+        value: "30"
+      # 데이터베이스 설정 (추후 추가)
+      - key: DATABASE_URL
+        sync: false # 환경변수에서 동적으로 설정
+      - key: REDIS_URL
+        sync: false # 환경변수에서 동적으로 설정
+      # JWT 보안 설정
+      - key: JWT_SECRET_KEY
+        generateValue: true # 자동으로 시크릿 키 생성
+      # OpenAI API 키 (환경변수에서 설정)
+      - key: OPENAI_API_KEY
+        sync: false
+      # CORS 설정
+      - key: ALLOWED_ORIGINS
+        value: "https://jihyung-productivity-app.vercel.app,https://*.vercel.app,http://localhost:5178"
+      # 기타 보안 설정
+      - key: SECURE_SSL_REDIRECT
+        value: "true"
+      - key: SECURE_HSTS_SECONDS
+        value: "31536000"
+
+  # PostgreSQL Database (선택적)
+  - type: pserv
+    name: jihyung-database
+    plan: starter
+    region: singapore
+    env: postgres
+    # 자동 백업 활성화
+    backup:
+      enabled: true
+      schedule: "0 2 * * *" # 매일 오전 2시 백업
+
+  # Redis Cache (선택적)
+  - type: redis
+    name: jihyung-cache
+    plan: starter
+    region: singapore
+    maxMemory: 25mb
+    evictionPolicy: allkeys-lru
+
+# 빌드 및 배포 후크
+buildCommand: |
+  # Python 패키지 설치
+  cd backend
+  python -m pip install --upgrade pip
+  pip install -r requirements.txt
+
+  # 환경 변수 검증
+  python -c "
+  import os
+  required_vars = ['JWT_SECRET_KEY', 'OPENAI_API_KEY']
+  missing = [var for var in required_vars if not os.getenv(var)]
+  if missing:
+      print(f'Warning: Missing environment variables: {missing}')
+  "
+
+# 헬스체크 설정
+healthCheck:
+  path: /health
+  timeout: 30
+  interval: 60
+  retries: 3
+
+# 성능 모니터링
+metrics:
+  enabled: true
+  path: /metrics
+
+# 로그 설정
+logs:
+  retention: 7 # 7일간 로그 보관
+  level: INFO
+
+# 스케일링 설정 (Paid plans only)
+scaling:
+  minInstances: 1
+  maxInstances: 3
+  targetCPU: 70
+  targetMemory: 80
+
+# 네트워크 보안 설정
+network:
+  allowedIPs:
+    - "0.0.0.0/0" # 모든 IP 허용 (필요시 제한)
+
+# SSL/TLS 설정
+ssl:
+  redirect: true
+  cert: auto # Let's Encrypt 자동 인증서
+
+# 환경별 설정
+environments:
+  production:
+    envVars:
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DEBUG
+        value: "false"
+  staging:
+    envVars:
+      - key: LOG_LEVEL
+        value: DEBUG
+      - key: DEBUG
+        value: "true"
+
+# 배포 알림 (Webhook 설정 시)
+notifications:
+  slack:
+    webhook: ${SLACK_WEBHOOK_URL}
+    events:
+      - deploy_success
+      - deploy_failure
+      - service_unhealthy
