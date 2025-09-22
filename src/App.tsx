@@ -1529,7 +1529,7 @@ function SuperAISecondBrainApp() {
     timelinePosition: Date.now(),
     notes: notes, // 실제 데이터 사용
     tasks: tasks, // 실제 데이터 사용
-    events: events, // 실제 데이터 사용
+    events: events as any, // 실제 데이터 사용
     insights: [],
     projects: [],
     teams: [],
@@ -1598,7 +1598,7 @@ function SuperAISecondBrainApp() {
     isProjectManagerOpen: false,
     isWorkspaceSettingsOpen: false,
     isConsciousnessExpanderOpen: false,
-    isConsciousnessComputingHubOpen: false,
+    // isConsciousnessComputingHubOpen: false,
     isMeditationChamberOpen: false,
     isCosmicInsightOpen: false,
     isRealityHackerOpen: false,
@@ -2186,7 +2186,7 @@ function SuperAISecondBrainApp() {
                   <NotesPageUltraModern 
                     onNoteCreated={handleNoteCreated}
                     notes={superAppState.notes}
-                    quantumEnabled={superAppState.quantumProcessingEnabled}
+                    // quantumEnabled={superAppState.quantumProcessingEnabled}
                   />
                 )}
 
@@ -2373,7 +2373,7 @@ function SuperAISecondBrainApp() {
                 onClose={() => setSuperUIState(prev => ({ ...prev, isCaptureOpen: false }))}
                 onNoteCreated={handleNoteCreated}
                 onTasksCreated={(tasks) => tasks.forEach(handleTaskCreated)}
-                quantumEnabled={superAppState.quantumProcessingEnabled}
+                // quantumEnabled={superAppState.quantumProcessingEnabled}
               />
             </Suspense>
           </DialogContent>
@@ -2418,7 +2418,7 @@ function SuperAISecondBrainApp() {
                 projects={superAppState.projects}
                 mode={superAppState.aiMode}
                 privacyMode={superAppState.privacyMode}
-                quantumEnabled={superAppState.quantumProcessingEnabled}
+                // quantumEnabled={superAppState.quantumProcessingEnabled}
                 neuralNetwork={neuralNetwork}
               />
             </Suspense>
@@ -2776,7 +2776,7 @@ const BlockchainSecurityManager: React.FC<{ isOpen: boolean; onClose: () => void
 function TranscendentApp() {
   const [superUIState, setSuperUIState] = useState({
     isConsciousnessExpanderOpen: false,
-    isConsciousnessComputingHubOpen: false,
+    // isConsciousnessComputingHubOpen: false,
     isTimeManipulatorOpen: false,
     isRealityHackerOpen: false,
     isDimensionPortalOpen: false,
@@ -2801,11 +2801,7 @@ function TranscendentApp() {
               onClose={() => setSuperUIState(prev => ({ ...prev, isConsciousnessExpanderOpen: false }))}
             />
 
-            {/* Consciousness Computing Hub */}
-            <ConsciousnessComputingHub
-              isOpen={superUIState.isConsciousnessComputingHubOpen}
-              onClose={() => setSuperUIState(prev => ({ ...prev, isConsciousnessComputingHubOpen: false }))}
-            />
+            {/* Consciousness Computing Hub - temporarily disabled */}
 
             {/* Time Manipulation Interface */}
             <TimeManipulationInterface
@@ -2835,7 +2831,7 @@ function TranscendentApp() {
                 🧘‍♂️
               </button>
               <button
-                onClick={() => setSuperUIState(prev => ({ ...prev, isConsciousnessComputingHubOpen: true }))}
+                onClick={() => setSuperUIState(prev => ({ ...prev, /* isConsciousnessComputingHubOpen: true */ }))}
                 className="w-14 h-14 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-300 shadow-lg"
                 title="Consciousness Computing"
               >

@@ -7,36 +7,11 @@
   "installCommand": "npm ci --prefer-offline --no-audit --progress=false",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/proxy?path=$1"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "s-maxage=0, max-age=0"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, PUT, DELETE, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization"
-        }
-      ]
-    },
     {
       "source": "/static/(.*)",
       "headers": [
@@ -86,14 +61,8 @@
       ]
     }
   ],
-  "functions": {
-    "api/proxy.js": {
-      "maxDuration": 30
-    }
-  },
   "env": {
     "NODE_ENV": "production",
-    "VITE_API_BASE_URL": "/api",
     "VITE_APP_NAME": "JIHYUNG",
     "VITE_APP_VERSION": "2.0.0"
   },
