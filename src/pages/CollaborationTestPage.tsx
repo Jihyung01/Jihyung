@@ -217,7 +217,7 @@ export const CollaborationTestPage: React.FC = () => {
                       onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                       className="flex-1"
                     />
-                    <Button onClick={sendMessage} size="icon">
+                    <Button onClick={sendMessage} size="sm">
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>

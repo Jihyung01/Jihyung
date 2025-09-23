@@ -48,12 +48,12 @@ declare global {
     message: string;
   }
 
-  const SpeechRecognition: {
+  var SpeechRecognition: {
     prototype: SpeechRecognition;
     new(): SpeechRecognition;
   };
 
-  const webkitSpeechRecognition: {
+  var webkitSpeechRecognition: {
     prototype: SpeechRecognition;
     new(): SpeechRecognition;
   };

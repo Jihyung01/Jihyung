@@ -7,6 +7,15 @@ import tseslint from 'typescript-eslint'
 export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'backend', 'src/App-*.tsx', '!src/App.tsx'] },
   {
+    // Special rules for global type definitions
+    files: ['**/*.d.ts'],
+    rules: {
+      'no-var': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+  {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
     languageOptions: {

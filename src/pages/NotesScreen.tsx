@@ -87,14 +87,14 @@ export function NotesScreen() {
   useEffect(() => {
     if (editingNote) {
       setFormData({
-        title: editingNote.title,
-        content: editingNote.content,
-        type: editingNote.type,
-        tags: editingNote.tags,
+        title: editingNote.title || '',
+        content: editingNote.content || '',
+        type: editingNote.type || 'note',
+        tags: editingNote.tags || [],
         folder: editingNote.folder || '',
         color: editingNote.color || '#3b82f6',
-        starred: editingNote.starred,
-        pinned: editingNote.pinned
+        starred: editingNote.starred || false,
+        pinned: editingNote.pinned || false
       })
     }
   }, [editingNote])
@@ -102,9 +102,9 @@ export function NotesScreen() {
   const folders = ['all', ...Array.from(new Set(notes.map(note => note.folder).filter((folder): folder is string => Boolean(folder))))]
   
   const filteredNotes = notes.filter(note => {
-    const matchesSearch = note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         note.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+    const matchesSearch = (note.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (note.content || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (note.tags || []).some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
     
     const matchesType = filterType === 'all' || 
                        (filterType === 'starred' && note.starred) ||
@@ -164,7 +164,14 @@ export function NotesScreen() {
         ...formData,
         tags: formData.tags.filter(tag => tag.trim() !== ''),
         folder: formData.folder.trim() || undefined,
-        wordCount: formData.content.length
+        wordCount: formData.content.length,
+        // Add required fields for API compatibility
+        is_archived: false,
+        is_pinned: formData.pinned || false,
+        content_type: 'text',
+        word_count: formData.content.length,
+        collaborators: [],
+        isEncrypted: false
       })
       toast.success('노트가 생성되었습니다!')
       setIsCreateDialogOpen(false)
@@ -736,7 +743,7 @@ export function NotesScreen() {
               <span>총 {filteredNotes.length}개 노트</span>
               <span>즐겨찾기 {filteredNotes.filter(note => note.starred).length}개</span>
               <span>고정됨 {filteredNotes.filter(note => note.pinned).length}개</span>
-              <span>총 {filteredNotes.reduce((sum, note) => sum + note.wordCount, 0).toLocaleString()}자</span>
+              <span>총 {filteredNotes.reduce((sum, note) => sum + (note.wordCount || 0), 0).toLocaleString()}자</span>
             </div>
           </CardContent>
         </Card>

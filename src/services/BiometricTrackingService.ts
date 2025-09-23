@@ -377,6 +377,27 @@ class BiometricTrackingService {
     this.generateProductivityInsights()
   }
 
+  private generateProductivityInsights() {
+    // Generate insights based on current data
+    const recentData = this.data.slice(-7); // Last 7 entries
+    if (recentData.length === 0) return;
+
+    const avgStress = this.average(recentData.map(d => d.stressLevel).filter((val): val is number => typeof val === 'number'));
+    const avgEnergy = this.average(recentData.map(d => d.energyLevel).filter((val): val is number => typeof val === 'number'));
+    const avgSleep = this.average(recentData.map(d => d.sleepQuality).filter((val): val is number => typeof val === 'number'));
+
+    // Generate insights based on patterns
+    if (avgStress > 70) {
+      console.log('High stress levels detected - consider stress management techniques');
+    }
+    if (avgEnergy < 30) {
+      console.log('Low energy levels detected - consider improving sleep or nutrition');
+    }
+    if (avgSleep < 50) {
+      console.log('Poor sleep quality detected - consider sleep hygiene improvements');
+    }
+  }
+
   private calculateCorrelations(biometric: BiometricData, productivity: any) {
     return {
       sleepVsProductivity: this.correlateValues(
@@ -762,13 +783,13 @@ class BiometricTrackingService {
     if (data.length === 0) return null
 
     return {
-      heartRate: this.average(data.map(d => d.heartRate).filter(Boolean)),
-      steps: this.average(data.map(d => d.stepCount).filter(Boolean)),
-      sleep: this.average(data.map(d => d.sleepDuration).filter(Boolean)),
-      sleepQuality: this.average(data.map(d => d.sleepQuality).filter(Boolean)),
-      stress: this.average(data.map(d => d.stressLevel).filter(Boolean)),
-      energy: this.average(data.map(d => d.energyLevel).filter(Boolean)),
-      mood: this.average(data.map(d => d.mood).filter(Boolean))
+      heartRate: this.average(data.map(d => d.heartRate).filter((val): val is number => typeof val === 'number')),
+      steps: this.average(data.map(d => d.stepCount).filter((val): val is number => typeof val === 'number')),
+      sleep: this.average(data.map(d => d.sleepDuration).filter((val): val is number => typeof val === 'number')),
+      sleepQuality: this.average(data.map(d => d.sleepQuality).filter((val): val is number => typeof val === 'number')),
+      stress: this.average(data.map(d => d.stressLevel).filter((val): val is number => typeof val === 'number')),
+      energy: this.average(data.map(d => d.energyLevel).filter((val): val is number => typeof val === 'number')),
+      mood: this.average(data.map(d => d.mood).filter((val): val is number => typeof val === 'number'))
     }
   }
 
