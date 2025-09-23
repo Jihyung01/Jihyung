@@ -27,12 +27,33 @@ createRoot(root).render(
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
+    navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
         console.log('✅ Service Worker registered successfully:', registration.scope);
+
+        // Check for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New version available, prompt user to refresh
+                if (confirm('새 버전이 있습니다. 업데이트하시겠습니까?')) {
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
+                  window.location.reload();
+                }
+              }
+            });
+          }
+        });
       })
       .catch((error) => {
         console.log('❌ Service Worker registration failed:', error);
       });
+  });
+
+  // Listen for controlling service worker changes
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
   });
 }
