@@ -4,7 +4,6 @@ const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/src/main.css',
   '/favicon.ico'
 ]
 
@@ -12,7 +11,17 @@ const urlsToCache = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+      .then(cache => {
+        // Filter out URLs with unsupported schemes
+        const validUrls = urlsToCache.filter(url =>
+          !url.startsWith('chrome-extension:') &&
+          !url.startsWith('moz-extension:')
+        )
+        return cache.addAll(validUrls)
+      })
+      .catch(error => {
+        console.log('Cache addAll failed:', error)
+      })
   )
 })
 
@@ -20,6 +29,13 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
   // Skip for non-GET requests
   if (event.request.method !== 'GET') return
+
+  // Skip chrome-extension and other non-http schemes
+  if (event.request.url.startsWith('chrome-extension:') ||
+      event.request.url.startsWith('moz-extension:') ||
+      !event.request.url.startsWith('http')) {
+    return
+  }
 
   // Handle API requests with network-first strategy
   if (event.request.url.includes('/api/')) {
@@ -30,7 +46,11 @@ self.addEventListener('fetch', event => {
           if (response.status === 200) {
             const responseClone = response.clone()
             caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, responseClone)
+              try {
+                cache.put(event.request, responseClone)
+              } catch (error) {
+                console.log('Cache put failed for API:', error)
+              }
             })
           }
           return response
@@ -64,13 +84,6 @@ self.addEventListener('fetch', event => {
           return response
         }
 
-        // Skip caching for chrome-extension and other non-http schemes
-        if (event.request.url.startsWith('chrome-extension:') ||
-            event.request.url.startsWith('moz-extension:') ||
-            !event.request.url.startsWith('http')) {
-          return fetch(event.request)
-        }
-
         // Clone the request
         const fetchRequest = event.request.clone()
 
@@ -101,20 +114,5 @@ self.addEventListener('fetch', event => {
           return new Response('Offline', { status: 503 })
         })
       })
-  )
-})
-
-// Activate event
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName)
-          }
-        })
-      )
-    })
   )
 })
