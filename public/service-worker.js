@@ -64,6 +64,13 @@ self.addEventListener('fetch', event => {
           return response
         }
 
+        // Skip caching for chrome-extension and other non-http schemes
+        if (event.request.url.startsWith('chrome-extension:') ||
+            event.request.url.startsWith('moz-extension:') ||
+            !event.request.url.startsWith('http')) {
+          return fetch(event.request)
+        }
+
         // Clone the request
         const fetchRequest = event.request.clone()
 
@@ -78,7 +85,11 @@ self.addEventListener('fetch', event => {
 
           caches.open(CACHE_NAME)
             .then(cache => {
-              cache.put(event.request, responseToCache)
+              try {
+                cache.put(event.request, responseToCache)
+              } catch (error) {
+                console.log('Cache put failed:', error)
+              }
             })
 
           return response
