@@ -42,6 +42,7 @@ export default defineConfig({
     sourcemap: false,
     cssCodeSplit: true,
     reportCompressedSize: false, // 빌드 시간 단축
+    chunkSizeWarningLimit: 2000, // 청크 크기 경고 제한 증가
     rollupOptions: {
       output: {
         manualChunks: {
@@ -84,7 +85,6 @@ export default defineConfig({
         assetFileNames: 'assets/[name]-[hash].[ext]',
       }
     },
-    chunkSizeWarningLimit: 1500, // 청크 크기 경고 임계값 증가
     assetsInlineLimit: 4096, // 4KB 이하 파일은 인라인으로
   },
   optimizeDeps: {

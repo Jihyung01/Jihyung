@@ -8,7 +8,9 @@
       "Bash(npm run lint)",
       "Bash(npm run build:*)",
       "Bash(npm run lint:*)",
-      "Bash(npm update:*)"
+      "Bash(npm update:*)",
+      "Bash(gh api:*)",
+      "Bash(npx vercel:*)"
     ],
     "deny": [],
     "ask": []
