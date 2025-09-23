@@ -218,3 +218,32 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Electron build files
+release/
+*.deb
+*.dmg
+*.AppImage
+*.exe
+*.zip
+*.tar.gz
+
+# Platform specific builds
+dist-electron/
+
+# Environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# Next.js
+.next/
+out/
+
+# Playwright
+test-results/
+playwright-report/

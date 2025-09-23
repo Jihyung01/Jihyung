@@ -2816,7 +2816,7 @@ function TranscendentApp() {
                 🧘‍♂️
               </button>
               <button
-                onClick={() => setSuperUIState(prev => ({ ...prev, /* isConsciousnessComputingHubOpen: true */ }))}
+                onClick={() => setSuperUIState(prev => ({ ...prev }))} // Consciousness computing hub disabled
                 className="w-14 h-14 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-300 shadow-lg"
                 title="Consciousness Computing"
               >
