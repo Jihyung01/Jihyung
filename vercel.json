@@ -2,19 +2,10 @@
   "version": 2,
   "name": "jihyung-productivity-app",
   "framework": "vite",
-  "buildCommand": "npm run build",
+  "buildCommand": "vite build",
   "outputDirectory": "dist",
-  "installCommand": "npm ci --platform=linux --arch=x64",
-  "functions": {
-    "api/proxy.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
+  "installCommand": "npm ci",
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/proxy?path=$1"
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
