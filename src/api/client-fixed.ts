@@ -3,7 +3,8 @@ const API_BASE = process.env.NODE_ENV === 'production'
   : 'http://localhost:8006/api'
 
 // Check if we should use mock API (when backend is not available)
-const USE_MOCK_API = process.env.NODE_ENV === 'production' || !navigator.onLine
+// Force mock API in production since backend is not deployed
+const USE_MOCK_API = true
 
 interface ApiConfig {
   useAuth: boolean
@@ -203,28 +204,41 @@ export const updateTask = (id: string, task: Partial<{
 export const deleteTask = (id: string) => del<void>(`/tasks/${id}`)
 
 // Calendar
-export const getCalendarEvents = (from: string, to: string) =>
-  get<any[]>(`/calendar?from=${from}&to=${to}`)
+export const getCalendarEvents = (from: string, to: string) => {
+  // Always use mock API since there's no backend deployed
+  console.log('📅 Mock: Getting calendar events from', from, 'to', to)
+  const events = JSON.parse(localStorage.getItem('mock_calendar_events') || '[]')
+  return Promise.resolve(events)
+}
 
 export const createCalendarEvent = (event: {
   title: string
+  start?: string
+  end?: string
   start_at?: string
   end_at?: string
   description?: string
   location?: string
+  all_day?: boolean
+  timezone?: string
+  color?: string
+  meeting_url?: string
+  event_type?: string
+  recurrence_rule?: string
+  reminder_minutes?: number[]
+  attendees?: any
+  visibility?: string
 }) => {
-  if (USE_MOCK_API) {
-    console.log('📅 Mock: Creating calendar event', event)
-    const mockEvent = mockResponses.createCalendarEvent(event)
+  // Always use mock API since there's no backend deployed
+  console.log('📅 Mock: Creating calendar event', event)
+  const mockEvent = mockResponses.createCalendarEvent(event)
 
-    // Store in localStorage for persistence
-    const events = JSON.parse(localStorage.getItem('mock_calendar_events') || '[]')
-    events.push(mockEvent)
-    localStorage.setItem('mock_calendar_events', JSON.stringify(events))
+  // Store in localStorage for persistence
+  const events = JSON.parse(localStorage.getItem('mock_calendar_events') || '[]')
+  events.push(mockEvent)
+  localStorage.setItem('mock_calendar_events', JSON.stringify(events))
 
-    return Promise.resolve(mockEvent)
-  }
-  return post<any>('/calendar', event)
+  return Promise.resolve(mockEvent)
 }
 
 export const updateCalendarEvent = (id: string, event: Partial<{
@@ -279,6 +293,10 @@ export const getWeeklyBrief = () =>
     top_categories: any[]
     summary?: string
   }>('/weekly-brief')
+
+// Chat with AI
+export const chatWithAI = (message: string, context?: string, mode?: string) =>
+  post<{ response: string; insights?: string[] }>('/ai/chat', { message, context, mode })
 
 // Mock API functions for offline/production use
 const mockResponses = {

@@ -1,5 +1,5 @@
 // Enhanced API Client for Real Functionality
-import * as api from '@/api/client';
+import * as api from '@/api/client-fixed';
 // Import unified types for consistency
 import { Note as UnifiedNote, Task as UnifiedTask, CalendarEvent as UnifiedCalendarEvent } from '../types/unified';
 

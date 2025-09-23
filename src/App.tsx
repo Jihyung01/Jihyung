@@ -1363,6 +1363,7 @@ interface SuperUIState {
   omniscientModeActive: boolean
   theme: 'light' | 'dark' | 'auto' | 'adaptive' | 'quantum' | 'cosmic' | 'ethereal' | 'divine'
   sidebarCollapsed: boolean
+  mobileMenuOpen: boolean
   miniPlayerActive: boolean
   contextualAssistantVisible: boolean
   smartSuggestionsEnabled: boolean
@@ -1604,6 +1605,7 @@ function SuperAISecondBrainApp() {
     omniscientModeActive: false,
     theme: 'auto',
     sidebarCollapsed: false,
+    mobileMenuOpen: false,
     miniPlayerActive: false,
     contextualAssistantVisible: true,
     smartSuggestionsEnabled: true,
@@ -1905,14 +1907,15 @@ function SuperAISecondBrainApp() {
       } ${superUIState.focusMode ? 'focus-mode' : ''} ${superUIState.zenMode ? 'zen-mode' : ''}`}>        {/* ===================== */}
         {/* QUANTUM STATUS BAR    */}
         {/* ===================== */}
-        <motion.div 
+        <motion.div
           className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-b border-purple-500/20"
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
           initial={{ y: -100 }}
           animate={{ y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="flex items-center justify-between px-6 py-3 text-sm">
-            <div className="flex items-center gap-6">
+          <div className="flex items-center justify-between px-3 md:px-6 py-2 md:py-3 text-xs md:text-sm">
+            <div className="flex items-center gap-3 md:gap-6">
               <motion.div 
                 className="flex items-center gap-3"
                 whileHover={{ scale: 1.05 }}
@@ -1990,15 +1993,15 @@ function SuperAISecondBrainApp() {
             </div>
             
             {/* Super Quick Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 md:gap-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setSuperUIState(prev => ({ ...prev, isCommandPaletteOpen: true }))}
                 className="text-xs hover:bg-purple-500/20"
               >
-                <Command className="h-3 w-3 mr-1" />
-                Cmd+K
+                <Command className="h-3 w-3 md:mr-1" />
+                <span className="hidden md:inline">Cmd+K</span>
               </Button>
               
               <Button
@@ -2037,14 +2040,29 @@ function SuperAISecondBrainApp() {
         {/* ===================== */}
         {/* SUPER NAVIGATION      */}
         {/* ===================== */}
-        <motion.nav 
-          className="fixed top-16 left-0 right-0 z-40 bg-background/90 backdrop-blur-lg border-b border-indigo-500/20"
+        <motion.nav
+          className="fixed left-0 right-0 z-40 bg-background/90 backdrop-blur-lg border-b border-indigo-500/20"
+          style={{ top: 'calc(4rem + env(safe-area-inset-top))' }}
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-8">
+          <div className="flex items-center justify-between px-4 md:px-6 py-4">
+            {/* Mobile Navigation */}
+            <div className="md:hidden flex items-center gap-4">
+              <button
+                onClick={() => setSuperUIState(prev => ({ ...prev, mobileMenuOpen: !prev.mobileMenuOpen }))}
+                className="p-2 text-foreground hover:bg-background/50 rounded-lg transition-colors"
+              >
+                <Command className="h-5 w-5" />
+              </button>
+              <span className="text-sm font-medium text-foreground">
+                {superAppState.currentPage.charAt(0).toUpperCase() + superAppState.currentPage.slice(1)}
+              </span>
+            </div>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-6 lg:gap-8">
               {([
                 { id: 'dashboard', icon: ChartLine, label: 'Dashboard' },
                 { id: 'notes', icon: FileText, label: 'Notes' },
@@ -2068,7 +2086,7 @@ function SuperAISecondBrainApp() {
                     whileTap={{ scale: 0.95 }}
                   >
                     <Icon className="h-4 w-4" />
-                    {page.label}
+                    <span className="hidden lg:inline">{page.label}</span>
                   </motion.button>
                 )
               })}
@@ -2126,10 +2144,78 @@ function SuperAISecondBrainApp() {
           </div>
         </motion.nav>
 
+        {/* Mobile Menu Overlay */}
+        <AnimatePresence>
+          {superUIState.mobileMenuOpen && (
+            <motion.div
+              className="fixed inset-0 z-50 md:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {/* Backdrop */}
+              <div
+                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                onClick={() => setSuperUIState(prev => ({ ...prev, mobileMenuOpen: false }))}
+              />
+
+              {/* Menu Content */}
+              <motion.div
+                className="absolute left-4 right-4 bg-background/95 backdrop-blur-lg rounded-xl border border-border shadow-xl"
+                style={{ top: 'calc(8rem + env(safe-area-inset-top))' }}
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -20, opacity: 0 }}
+              >
+                <div className="p-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {([
+                      { id: 'dashboard', icon: ChartLine, label: 'Dashboard' },
+                      { id: 'notes', icon: FileText, label: 'Notes' },
+                      { id: 'tasks', icon: Target, label: 'Tasks' },
+                      { id: 'calendar', icon: Calendar, label: 'Calendar' },
+                      { id: 'projects', icon: Folder, label: 'Projects' },
+                      { id: 'collaboration', icon: Network, label: 'Collaboration' },
+                      { id: 'quantum', icon: Atom, label: 'Quantum' },
+                    ] as const).map((page) => {
+                      const Icon = page.icon
+                      return (
+                        <motion.button
+                          key={page.id}
+                          onClick={() => {
+                            setSuperAppState(prev => ({ ...prev, currentPage: page.id }))
+                            setSuperUIState(prev => ({ ...prev, mobileMenuOpen: false }))
+                          }}
+                          className={`flex flex-col items-center gap-2 p-3 rounded-lg text-sm font-medium transition-all ${
+                            superAppState.currentPage === page.id
+                              ? 'bg-primary/10 text-primary border border-primary/20'
+                              : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
+                          }`}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Icon className="h-5 w-5" />
+                          {page.label}
+                        </motion.button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ===================== */}
         {/* SUPER MAIN CONTENT    */}
         {/* ===================== */}
-        <main className="container mx-auto px-6 py-8 pt-40">
+        <main
+          className="container mx-auto px-3 md:px-6 py-4 md:py-8"
+          style={{
+            paddingTop: 'calc(8rem + env(safe-area-inset-top))',
+            paddingBottom: 'env(safe-area-inset-bottom)'
+          }}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={superAppState.currentPage}
@@ -2513,40 +2599,6 @@ function SuperAISecondBrainApp() {
           </div>
         </PIPManager>
 
-        {/* Performance Monitor */}
-        {superUIState.realTimeInsightsEnabled && (
-          <motion.div
-            className="fixed bottom-6 left-6 z-40"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <Card className="w-64 border-green-500/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <ChartLine className="h-4 w-4 text-green-500" />
-                  System Performance
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span>CPU</span>
-                  <span className="text-green-500">{performance?.cpuUsage || 0}%</span>
-                </div>
-                <Progress value={performance?.cpuUsage || 0} className="h-1" />
-                <div className="flex justify-between text-xs">
-                  <span>Memory</span>
-                  <span className="text-blue-500">{performance?.memoryUsage || 0}%</span>
-                </div>
-                <Progress value={performance?.memoryUsage || 0} className="h-1" />
-                <div className="flex justify-between text-xs">
-                  <span>Quantum</span>
-                  <span className="text-purple-500">{superAppState.quantumProcessingEnabled ? 95 : 0}%</span>
-                </div>
-                <Progress value={superAppState.quantumProcessingEnabled ? 95 : 0} className="h-1" />
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
       </div>
     </TooltipProvider>
   )
