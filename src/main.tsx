@@ -24,7 +24,9 @@ createRoot(root).render(
   </ErrorBoundary>
 )
 
-// Register Service Worker for PWA
+// Service Worker temporarily disabled to fix deployment issues
+// Will be re-enabled after resolving MIME type and caching conflicts
+/*
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js')
@@ -36,3 +38,4 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
+*/
