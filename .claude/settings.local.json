@@ -10,7 +10,8 @@
       "Bash(npm run lint:*)",
       "Bash(npm update:*)",
       "Bash(gh api:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

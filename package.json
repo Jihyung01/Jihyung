@@ -130,8 +130,8 @@
         "electron-builder": "^24.13.3"
     },
     "engines": {
-        "node": "18.x",
-        "npm": "9.x"
+        "node": "22.x",
+        "npm": "10.x"
     },
     "build": {
         "appId": "com.yourcompany.spark-ai",
