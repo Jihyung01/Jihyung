@@ -72,13 +72,13 @@ export const MobileOptimizedInterface: React.FC<MobileOptimizedInterfaceProps> =
   const y = useMotionValue(0);
   const opacity = useTransform(y, [0, 100], [0, 1]);
 
-  // Navigation items for mobile
+  // Navigation items for mobile - iOS style
   const navigationItems = [
-    { id: 'dashboard', label: '대시보드', icon: <Home className="h-5 w-5" />, color: 'text-blue-500' },
-    { id: 'tasks', label: '할 일', icon: <CheckSquare className="h-5 w-5" />, color: 'text-green-500' },
-    { id: 'calendar', label: '캘린더', icon: <Calendar className="h-5 w-5" />, color: 'text-purple-500' },
-    { id: 'notes', label: '노트', icon: <FileText className="h-5 w-5" />, color: 'text-orange-500' },
-    { id: 'collaboration', label: '협업', icon: <Users className="h-5 w-5" />, color: 'text-pink-500' }
+    { id: 'dashboard', label: '홈', icon: <Home className="h-6 w-6" />, color: 'text-blue-500', badgeCount: 0 },
+    { id: 'tasks', label: '할 일', icon: <CheckSquare className="h-6 w-6" />, color: 'text-green-500', badgeCount: 3 },
+    { id: 'calendar', label: '캘린더', icon: <Calendar className="h-6 w-6" />, color: 'text-purple-500', badgeCount: 0 },
+    { id: 'notes', label: '노트', icon: <FileText className="h-6 w-6" />, color: 'text-orange-500', badgeCount: 2 },
+    { id: 'collaboration', label: '협업', icon: <Users className="h-6 w-6" />, color: 'text-pink-500', badgeCount: 1 }
   ];
 
   // Quick actions
@@ -643,6 +643,82 @@ export const MobileOptimizedInterface: React.FC<MobileOptimizedInterfaceProps> =
           </>
         )}
       </AnimatePresence>
+
+      {/* iOS Style Bottom Tab Bar */}
+      <motion.nav
+        initial={{ y: 100 }}
+        animate={{ y: 0 }}
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-t border-gray-200 dark:border-gray-700"
+      >
+        {/* Safe area for iPhone notch */}
+        <div className="pb-safe">
+          <div className="flex items-center justify-around py-2">
+            {navigationItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  onNavigate(item.id);
+                  vibrate();
+                }}
+                className={`flex flex-col items-center py-2 px-4 min-w-0 relative ${
+                  currentPage === item.id
+                    ? 'text-blue-500'
+                    : 'text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <div className="relative">
+                  {React.cloneElement(item.icon, {
+                    className: `h-6 w-6 ${currentPage === item.id ? 'text-blue-500' : ''}`
+                  })}
+
+                  {/* Badge for notifications */}
+                  {item.badgeCount > 0 && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium"
+                    >
+                      {item.badgeCount > 9 ? '9+' : item.badgeCount}
+                    </motion.span>
+                  )}
+                </div>
+
+                <span className={`text-xs mt-1 font-medium transition-colors ${
+                  currentPage === item.id
+                    ? 'text-blue-500'
+                    : 'text-gray-600 dark:text-gray-400'
+                }`}>
+                  {item.label}
+                </span>
+
+                {/* Active indicator */}
+                {currentPage === item.id && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </motion.nav>
+
+      {/* Floating Action Button - iOS style */}
+      <motion.button
+        onClick={() => {
+          setQuickActionOpen(true);
+          vibrate();
+        }}
+        className="fixed bottom-20 right-4 z-50 bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-full shadow-lg"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      >
+        <Plus className="h-6 w-6" />
+      </motion.button>
     </div>
   );
 };

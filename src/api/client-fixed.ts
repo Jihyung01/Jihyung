@@ -1,6 +1,9 @@
-const API_BASE = process.env.NODE_ENV === 'production' 
-  ? '/api' 
+const API_BASE = process.env.NODE_ENV === 'production'
+  ? '/api'
   : 'http://localhost:8006/api'
+
+// Check if we should use mock API (when backend is not available)
+const USE_MOCK_API = process.env.NODE_ENV === 'production' || !navigator.onLine
 
 interface ApiConfig {
   useAuth: boolean
@@ -169,7 +172,19 @@ export const createTask = (task: {
   energy?: number
   parent_id?: string
   note_id?: string
-}) => post<any>('/tasks', task)
+}) => {
+  if (USE_MOCK_API) {
+    console.log('✅ Mock: Creating task', task)
+    const mockTask = mockResponses.createTask(task)
+
+    const tasks = JSON.parse(localStorage.getItem('mock_tasks') || '[]')
+    tasks.push(mockTask)
+    localStorage.setItem('mock_tasks', JSON.stringify(tasks))
+
+    return Promise.resolve(mockTask)
+  }
+  return post<any>('/tasks', task)
+}
 
 export const updateTask = (id: string, task: Partial<{
   title: string
@@ -194,10 +209,23 @@ export const getCalendarEvents = (from: string, to: string) =>
 export const createCalendarEvent = (event: {
   title: string
   start_at?: string
-  end_at?: string  
+  end_at?: string
   description?: string
   location?: string
-}) => post<any>('/calendar', event)
+}) => {
+  if (USE_MOCK_API) {
+    console.log('📅 Mock: Creating calendar event', event)
+    const mockEvent = mockResponses.createCalendarEvent(event)
+
+    // Store in localStorage for persistence
+    const events = JSON.parse(localStorage.getItem('mock_calendar_events') || '[]')
+    events.push(mockEvent)
+    localStorage.setItem('mock_calendar_events', JSON.stringify(events))
+
+    return Promise.resolve(mockEvent)
+  }
+  return post<any>('/calendar', event)
+}
 
 export const updateCalendarEvent = (id: string, event: Partial<{
   title: string
@@ -251,6 +279,77 @@ export const getWeeklyBrief = () =>
     top_categories: any[]
     summary?: string
   }>('/weekly-brief')
+
+// Mock API functions for offline/production use
+const mockResponses = {
+  createCalendarEvent: (data: any) => ({
+    id: Math.random().toString(36).substr(2, 9),
+    ...data,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    user_id: 'mock-user'
+  }),
+
+  createTask: (data: any) => ({
+    id: Math.random().toString(36).substr(2, 9),
+    ...data,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    user_id: 'mock-user'
+  }),
+
+  createNote: (data: any) => ({
+    id: Math.random().toString(36).substr(2, 9),
+    ...data,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    user_id: 'mock-user',
+    version: 1,
+    is_archived: false
+  })
+}
+
+// Override API functions to use mocks when needed
+if (USE_MOCK_API) {
+  console.log('🔄 Using mock API for demo purposes')
+
+  // Override calendar functions
+  window.createCalendarEvent = (data: any) => {
+    console.log('📅 Mock: Creating calendar event', data)
+    const event = mockResponses.createCalendarEvent(data)
+
+    // Store in localStorage for persistence
+    const events = JSON.parse(localStorage.getItem('mock_calendar_events') || '[]')
+    events.push(event)
+    localStorage.setItem('mock_calendar_events', JSON.stringify(events))
+
+    return Promise.resolve(event)
+  }
+
+  // Override task functions
+  window.createTask = (data: any) => {
+    console.log('✅ Mock: Creating task', data)
+    const task = mockResponses.createTask(data)
+
+    const tasks = JSON.parse(localStorage.getItem('mock_tasks') || '[]')
+    tasks.push(task)
+    localStorage.setItem('mock_tasks', JSON.stringify(tasks))
+
+    return Promise.resolve(task)
+  }
+
+  // Override note functions
+  window.createNote = (data: any) => {
+    console.log('📝 Mock: Creating note', data)
+    const note = mockResponses.createNote(data)
+
+    const notes = JSON.parse(localStorage.getItem('mock_notes') || '[]')
+    notes.push(note)
+    localStorage.setItem('mock_notes', JSON.stringify(notes))
+
+    return Promise.resolve(note)
+  }
+}
 
 // Export config for external use
 export { config }
