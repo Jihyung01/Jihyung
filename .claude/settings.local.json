@@ -23,7 +23,9 @@
       "Bash(backend_env/bin/python -m pip install:*)",
       "Bash(python -m pip install:*)",
       "Bash(python:*)",
-      "Bash(npm run dev:fe:*)"
+      "Bash(npm run dev:fe:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []
