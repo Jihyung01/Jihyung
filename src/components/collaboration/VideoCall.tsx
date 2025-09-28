@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Video, 
-  VideoOff, 
-  Mic, 
-  MicOff, 
-  Monitor, 
+import {
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  Monitor,
   MonitorOff,
-  Phone, 
+  Phone,
   PhoneOff,
   Settings,
   Users,
@@ -16,473 +16,441 @@ import {
   Volume2,
   VolumeX,
   Maximize,
-  Minimize
+  Minimize,
+  Record,
+  Download,
+  Share
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
-
-interface Participant {
-  id: string;
-  name: string;
-  isVideoEnabled: boolean;
-  isAudioEnabled: boolean;
-  stream?: MediaStream;
-}
+import { useCollaborationSocket } from '../../hooks/useCollaborationSocket';
+import { ChatPanel } from './ChatPanel';
 
 interface VideoCallProps {
   roomId: string;
   onLeave: () => void;
-  participants: Participant[];
+  currentUser: {
+    id: string;
+    name: string;
+    email: string;
+  };
 }
 
-export const VideoCall: React.FC<VideoCallProps> = ({ roomId, onLeave, participants }) => {
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+export const VideoCall: React.FC<VideoCallProps> = ({ roomId, onLeave, currentUser }) => {
+  const collaboration = useCollaborationSocket();
+
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'failed'>('connecting');
-  
+  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideosRef = useRef<{ [participantId: string]: HTMLVideoElement }>({});
-  const peerConnections = useRef<{ [participantId: string]: RTCPeerConnection }>({});
-  const websocketRef = useRef<WebSocket | null>(null);
+  const remoteVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
-  // WebRTC Configuration
-  const rtcConfiguration = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      // In production, you'd add TURN servers here
-    ],
-  };
-
-  // Initialize local media stream
-  const initializeMedia = useCallback(async () => {
-    try {
-      const constraints = {
-        video: { 
-          width: { ideal: 1280 }, 
-          height: { ideal: 720 },
-          facingMode: 'user'
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      setLocalStream(stream);
-      
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-      
-      toast.success('카메라와 마이크가 연결되었습니다');
-    } catch (error) {
-      console.error('Failed to access media devices:', error);
-      toast.error('카메라 또는 마이크 접근이 거부되었습니다');
+  useEffect(() => {
+    if (!collaboration.isConnected) {
+      collaboration.connect(currentUser);
     }
+
+    return () => {
+      collaboration.disconnect();
+    };
   }, []);
 
-  // Initialize WebSocket connection
-  const initializeWebSocket = useCallback(() => {
+  useEffect(() => {
+    if (collaboration.isConnected && roomId && !collaboration.currentRoom) {
+      collaboration.joinRoom(roomId);
+    }
+  }, [collaboration.isConnected, roomId]);
+
+  useEffect(() => {
+    if (collaboration.localStream && localVideoRef.current) {
+      localVideoRef.current.srcObject = collaboration.localStream;
+    }
+  }, [collaboration.localStream]);
+
+  useEffect(() => {
+    const handleRemoteStream = (event: CustomEvent) => {
+      const { userId, stream } = event.detail;
+      const videoElement = remoteVideosRef.current.get(userId);
+      if (videoElement) {
+        videoElement.srcObject = stream;
+      }
+    };
+
+    window.addEventListener('remoteStreamAdded', handleRemoteStream as EventListener);
+    return () => {
+      window.removeEventListener('remoteStreamAdded', handleRemoteStream as EventListener);
+    };
+  }, []);
+
+  const startVideoCall = useCallback(async () => {
     try {
-      // In development, use a mock WebSocket or disable
-      if (process.env.NODE_ENV === 'development') {
-        // Mock connection for development
-        setConnectionState('connected');
-        toast.success('개발 모드: 가상 회의실에 연결되었습니다');
+      await collaboration.startVideoCall();
+      toast.success('화상 통화가 시작되었습니다');
+    } catch (error) {
+      console.error('Failed to start video call:', error);
+      toast.error('화상 통화 시작에 실패했습니다');
+    }
+  }, [collaboration]);
+
+  useEffect(() => {
+    if (collaboration.currentRoom && !collaboration.isInCall) {
+      startVideoCall();
+    }
+  }, [collaboration.currentRoom, startVideoCall]);
+
+  const startRecording = useCallback(async () => {
+    try {
+      if (!collaboration.localStream) {
+        toast.error('로컬 스트림이 없습니다');
         return;
       }
-      
-      const ws = new WebSocket(`wss://your-signaling-server.com/room/${roomId}`);
-      websocketRef.current = ws;
 
-      ws.onopen = () => {
-        setConnectionState('connected');
-        toast.success('회의실에 연결되었습니다');
-      };
-
-      ws.onmessage = async (event) => {
-        const message = JSON.parse(event.data);
-        await handleSignalingMessage(message);
-      };
-
-      ws.onclose = () => {
-        setConnectionState('failed');
-        toast.error('연결이 끊어졌습니다');
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setConnectionState('failed');
-        toast.error('연결에 실패했습니다');
-      };
-    } catch (error) {
-      console.error('Failed to initialize WebSocket:', error);
-      setConnectionState('failed');
-    }
-  }, [roomId]);
-
-  // Handle signaling messages
-  const handleSignalingMessage = async (message: any) => {
-    try {
-      switch (message.type) {
-        case 'offer':
-          await handleOffer(message);
-          break;
-        case 'answer':
-          await handleAnswer(message);
-          break;
-        case 'ice-candidate':
-          await handleIceCandidate(message);
-          break;
-        case 'participant-joined':
-          await handleParticipantJoined(message);
-          break;
-        case 'participant-left':
-          handleParticipantLeft(message);
-          break;
-      }
-    } catch (error) {
-      console.error('Error handling signaling message:', error);
-    }
-  };
-
-  // WebRTC peer connection handlers
-  const createPeerConnection = (participantId: string) => {
-    const peerConnection = new RTCPeerConnection(rtcConfiguration);
-    
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate && websocketRef.current) {
-        websocketRef.current.send(JSON.stringify({
-          type: 'ice-candidate',
-          candidate: event.candidate,
-          participantId
-        }));
-      }
-    };
-
-    peerConnection.ontrack = (event) => {
-      const remoteVideo = remoteVideosRef.current[participantId];
-      if (remoteVideo && event.streams[0]) {
-        remoteVideo.srcObject = event.streams[0];
-      }
-    };
-
-    peerConnection.onconnectionstatechange = () => {
-      console.log(`Connection state for ${participantId}:`, peerConnection.connectionState);
-    };
-
-    if (localStream) {
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
+      const mediaRecorder = new MediaRecorder(collaboration.localStream, {
+        mimeType: 'video/webm;codecs=vp9'
       });
-    }
 
-    peerConnections.current[participantId] = peerConnection;
-    return peerConnection;
-  };
+      recordedChunksRef.current = [];
 
-  const handleOffer = async (message: any) => {
-    const peerConnection = createPeerConnection(message.participantId);
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(message.offer));
-    
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    
-    if (websocketRef.current) {
-      websocketRef.current.send(JSON.stringify({
-        type: 'answer',
-        answer: answer,
-        participantId: message.participantId
-      }));
-    }
-  };
-
-  const handleAnswer = async (message: any) => {
-    const peerConnection = peerConnections.current[message.participantId];
-    if (peerConnection) {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(message.answer));
-    }
-  };
-
-  const handleIceCandidate = async (message: any) => {
-    const peerConnection = peerConnections.current[message.participantId];
-    if (peerConnection) {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
-    }
-  };
-
-  const handleParticipantJoined = async (message: any) => {
-    const peerConnection = createPeerConnection(message.participantId);
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    
-    if (websocketRef.current) {
-      websocketRef.current.send(JSON.stringify({
-        type: 'offer',
-        offer: offer,
-        participantId: message.participantId
-      }));
-    }
-  };
-
-  const handleParticipantLeft = (message: any) => {
-    const peerConnection = peerConnections.current[message.participantId];
-    if (peerConnection) {
-      peerConnection.close();
-      delete peerConnections.current[message.participantId];
-    }
-  };
-
-  // Media control functions
-  const toggleVideo = () => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !isVideoEnabled;
-        setIsVideoEnabled(!isVideoEnabled);
-      }
-    }
-  };
-
-  const toggleAudio = () => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !isAudioEnabled;
-        setIsAudioEnabled(!isAudioEnabled);
-      }
-    }
-  };
-
-  const toggleScreenShare = async () => {
-    try {
-      if (!isScreenSharing) {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { mediaSource: 'screen' },
-          audio: true
-        });
-        
-        // Replace video track in all peer connections
-        const videoTrack = screenStream.getVideoTracks()[0];
-        Object.values(peerConnections.current).forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-          if (sender) {
-            sender.replaceTrack(videoTrack);
-          }
-        });
-        
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = screenStream;
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
         }
-        
-        setIsScreenSharing(true);
-        toast.success('화면 공유가 시작되었습니다');
-        
-        // Handle screen share end
-        videoTrack.onended = () => {
-          stopScreenShare();
-        };
-      } else {
-        stopScreenShare();
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, {
+          type: 'video/webm'
+        });
+        setRecordingBlob(blob);
+        toast.success('녹화가 완료되었습니다');
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+      toast.success('녹화가 시작되었습니다');
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      toast.error('녹화 시작에 실패했습니다');
+    }
+  }, [collaboration.localStream]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+    }
+  }, [isRecording]);
+
+  const downloadRecording = useCallback(() => {
+    if (recordingBlob) {
+      const url = URL.createObjectURL(recordingBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recording-${new Date().toISOString().slice(0, 19)}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('녹화 파일이 다운로드되었습니다');
+    }
+  }, [recordingBlob]);
+
+  const startScreenShare = useCallback(async () => {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: 'screen' as any },
+        audio: true
+      });
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = screenStream;
       }
+
+      setIsScreenSharing(true);
+      toast.success('화면 공유가 시작되었습니다');
+
+      const videoTrack = screenStream.getVideoTracks()[0];
+      videoTrack.onended = () => {
+        stopScreenShare();
+      };
     } catch (error) {
       console.error('Screen share error:', error);
       toast.error('화면 공유에 실패했습니다');
     }
-  };
+  }, []);
 
-  const stopScreenShare = async () => {
+  const stopScreenShare = useCallback(async () => {
     try {
-      // Get camera stream back
-      const cameraStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
-      
-      const videoTrack = cameraStream.getVideoTracks()[0];
-      Object.values(peerConnections.current).forEach(pc => {
-        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-        if (sender) {
-          sender.replaceTrack(videoTrack);
-        }
-      });
-      
+      const cameraStream = await collaboration.initializeMedia();
+
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = cameraStream;
       }
-      
-      setLocalStream(cameraStream);
+
       setIsScreenSharing(false);
       toast.success('화면 공유가 중지되었습니다');
     } catch (error) {
       console.error('Error stopping screen share:', error);
+      toast.error('화면 공유 중지에 실패했습니다');
     }
-  };
+  }, [collaboration]);
 
-  const leaveCall = () => {
-    // Clean up all connections
-    Object.values(peerConnections.current).forEach(pc => pc.close());
-    
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+  const toggleVideo = useCallback(() => {
+    const newState = !isVideoEnabled;
+    setIsVideoEnabled(newState);
+    collaboration.toggleVideo(newState);
+  }, [isVideoEnabled, collaboration]);
+
+  const toggleAudio = useCallback(() => {
+    const newState = !isAudioEnabled;
+    setIsAudioEnabled(newState);
+    collaboration.toggleAudio(newState);
+  }, [isAudioEnabled, collaboration]);
+
+  const toggleScreenShare = useCallback(() => {
+    if (isScreenSharing) {
+      stopScreenShare();
+    } else {
+      startScreenShare();
     }
-    
-    if (websocketRef.current) {
-      websocketRef.current.close();
+  }, [isScreenSharing, startScreenShare, stopScreenShare]);
+
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
     }
-    
+  }, [isRecording, startRecording, stopRecording]);
+
+  const leaveCall = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    }
+
+    collaboration.leaveRoom();
+    collaboration.cleanup();
+
     onLeave();
-  };
+  }, [isRecording, stopRecording, collaboration, onLeave]);
 
-  // Initialize on mount
   useEffect(() => {
-    initializeMedia();
-    initializeWebSocket();
-    
     return () => {
-      // Cleanup on unmount
-      Object.values(peerConnections.current).forEach(pc => pc.close());
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      if (isRecording) {
+        stopRecording();
       }
-      if (websocketRef.current) {
-        websocketRef.current.close();
-      }
+      collaboration.cleanup();
     };
-  }, [initializeMedia, initializeWebSocket]);
+  }, [isRecording, stopRecording, collaboration]);
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className={`fixed inset-0 bg-black z-50 flex flex-col ${isFullscreen ? 'p-0' : 'p-4'}`}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-gray-900/80 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
-          <Badge 
-            variant={connectionState === 'connected' ? 'default' : 'destructive'}
-            className="flex items-center gap-2"
-          >
-            <div className={`w-2 h-2 rounded-full ${
-              connectionState === 'connected' ? 'bg-green-500' : 'bg-red-500'
-            }`} />
-            {connectionState === 'connected' ? '연결됨' : '연결 실패'}
-          </Badge>
-          
-          <div className="flex items-center gap-2 text-white">
-            <Users className="h-4 w-4" />
-            <span>{participants.length + 1}명 참여 중</span>
+    <div className="fixed inset-0 bg-black z-50 flex">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className={`flex-1 flex flex-col ${isFullscreen ? 'p-0' : 'p-4'}`}
+      >
+        <div className="flex items-center justify-between p-4 bg-gray-900/80 backdrop-blur-sm">
+          <div className="flex items-center gap-4">
+            <Badge
+              variant={collaboration.isConnected ? 'default' : 'destructive'}
+              className="flex items-center gap-2"
+            >
+              <div className={`w-2 h-2 rounded-full ${
+                collaboration.isConnected ? 'bg-green-500' : 'bg-red-500'
+              }`} />
+              {collaboration.isConnected ? '연결됨' : '연결 실패'}
+            </Badge>
+
+            <div className="flex items-center gap-2 text-white">
+              <Users className="h-4 w-4" />
+              <span>{collaboration.participants.length}명 참여 중</span>
+            </div>
+
+            {isRecording && (
+              <Badge variant="destructive" className="flex items-center gap-2 animate-pulse">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                녹화 중
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </Button>
+
+            <Button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20"
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
-        
-        <Button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          variant="ghost"
-          size="sm"
-          className="text-white hover:bg-white/20"
-        >
-          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-        </Button>
-      </div>
 
-      {/* Video Grid */}
-      <div className="flex-1 p-4 grid gap-4" style={{
-        gridTemplateColumns: participants.length === 0 ? '1fr' : 
-                           participants.length === 1 ? 'repeat(2, 1fr)' :
-                           participants.length <= 4 ? 'repeat(2, 1fr)' :
-                           'repeat(3, 1fr)'
-      }}>
-        {/* Local Video */}
-        <Card className="relative aspect-video bg-gray-900 overflow-hidden">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            playsInline
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
-            나 {isScreenSharing && '(화면 공유 중)'}
-          </div>
-          {!isVideoEnabled && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-              <VideoOff className="h-12 w-12 text-gray-400" />
-            </div>
-          )}
-        </Card>
-
-        {/* Remote Videos */}
-        {participants.map((participant, index) => (
-          <Card key={participant.id} className="relative aspect-video bg-gray-900 overflow-hidden">
+        <div className="flex-1 p-4 grid gap-4" style={{
+          gridTemplateColumns: collaboration.participants.length <= 1 ? '1fr' :
+                             collaboration.participants.length <= 4 ? 'repeat(2, 1fr)' :
+                             'repeat(3, 1fr)'
+        }}>
+          <Card className="relative aspect-video bg-gray-900 overflow-hidden">
             <video
-              ref={(el) => {
-                if (el) remoteVideosRef.current[participant.id] = el;
-              }}
+              ref={localVideoRef}
               autoPlay
+              muted
               playsInline
               className="w-full h-full object-cover"
             />
             <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
-              {participant.name}
+              {collaboration.currentUser?.name || '나'} {isScreenSharing && '(화면 공유 중)'}
             </div>
-            {!participant.isVideoEnabled && (
+            {!isVideoEnabled && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
                 <VideoOff className="h-12 w-12 text-gray-400" />
               </div>
             )}
+            {!isAudioEnabled && (
+              <div className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded">
+                <MicOff className="h-4 w-4" />
+              </div>
+            )}
           </Card>
-        ))}
-      </div>
 
-      {/* Controls */}
-      <div className="flex items-center justify-center gap-4 p-6 bg-gray-900/80 backdrop-blur-sm">
-        <Button
-          onClick={toggleVideo}
-          variant={isVideoEnabled ? "default" : "destructive"}
-          size="lg"
-          className="rounded-full h-12 w-12 p-0"
-        >
-          {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-        </Button>
+          {collaboration.participants
+            .filter(p => p.id !== collaboration.currentUser?.id)
+            .map((participant) => (
+            <Card key={participant.id} className="relative aspect-video bg-gray-900 overflow-hidden">
+              <video
+                ref={(el) => {
+                  if (el) {
+                    remoteVideosRef.current.set(participant.id, el);
+                    const stream = collaboration.remoteStreams.get(participant.id);
+                    if (stream) {
+                      el.srcObject = stream;
+                    }
+                  }
+                }}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-sm">
+                {participant.name}
+                {participant.role === 'host' && ' 👑'}
+              </div>
+              {!participant.is_video_enabled && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                  <VideoOff className="h-12 w-12 text-gray-400" />
+                  <div className="absolute bottom-8 text-white text-center">
+                    {participant.name.charAt(0).toUpperCase()}
+                  </div>
+                </div>
+              )}
+              {!participant.is_audio_enabled && (
+                <div className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded">
+                  <MicOff className="h-4 w-4" />
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
 
-        <Button
-          onClick={toggleAudio}
-          variant={isAudioEnabled ? "default" : "destructive"}
-          size="lg"
-          className="rounded-full h-12 w-12 p-0"
-        >
-          {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-        </Button>
+        <div className="flex items-center justify-center gap-4 p-6 bg-gray-900/80 backdrop-blur-sm">
+          <Button
+            onClick={toggleVideo}
+            variant={isVideoEnabled ? "default" : "destructive"}
+            size="lg"
+            className="rounded-full h-12 w-12 p-0"
+          >
+            {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+          </Button>
 
-        <Button
-          onClick={toggleScreenShare}
-          variant={isScreenSharing ? "secondary" : "outline"}
-          size="lg"
-          className="rounded-full h-12 w-12 p-0"
-        >
-          {isScreenSharing ? <MonitorOff className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}
-        </Button>
+          <Button
+            onClick={toggleAudio}
+            variant={isAudioEnabled ? "default" : "destructive"}
+            size="lg"
+            className="rounded-full h-12 w-12 p-0"
+          >
+            {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+          </Button>
 
-        <Button
-          onClick={leaveCall}
-          variant="destructive"
-          size="lg"
-          className="rounded-full h-12 w-12 p-0"
-        >
-          <PhoneOff className="h-5 w-5" />
-        </Button>
-      </div>
-    </motion.div>
+          <Button
+            onClick={toggleScreenShare}
+            variant={isScreenSharing ? "secondary" : "outline"}
+            size="lg"
+            className="rounded-full h-12 w-12 p-0"
+          >
+            {isScreenSharing ? <MonitorOff className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}
+          </Button>
+
+          <Button
+            onClick={toggleRecording}
+            variant={isRecording ? "destructive" : "outline"}
+            size="lg"
+            className="rounded-full h-12 w-12 p-0"
+          >
+            <Record className="h-5 w-5" />
+          </Button>
+
+          {recordingBlob && (
+            <Button
+              onClick={downloadRecording}
+              variant="outline"
+              size="lg"
+              className="rounded-full h-12 w-12 p-0"
+            >
+              <Download className="h-5 w-5" />
+            </Button>
+          )}
+
+          <Button
+            onClick={leaveCall}
+            variant="destructive"
+            size="lg"
+            className="rounded-full h-12 w-12 p-0"
+          >
+            <PhoneOff className="h-5 w-5" />
+          </Button>
+        </div>
+      </motion.div>
+
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div
+            initial={{ x: 400, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 400, opacity: 0 }}
+            transition={{ type: "spring", damping: 20 }}
+            className="w-96 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700"
+          >
+            <ChatPanel
+              messages={collaboration.messages}
+              participants={collaboration.participants}
+              currentUser={collaboration.currentUser}
+              onSendMessage={collaboration.sendMessage}
+              className="h-full rounded-none border-0"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };

@@ -13,7 +13,17 @@
       "Bash(npx vercel:*)",
       "Bash(node:*)",
       "Bash(npm run dev:*)",
-      "Bash(npx serve:*)"
+      "Bash(npx serve:*)",
+      "Bash(mkdir:*)",
+      "Bash(gh auth:*)",
+      "Bash(npm install:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(./activate)",
+      "Bash(backend_env/bin/python -m pip install:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(python:*)",
+      "Bash(npm run dev:fe:*)"
     ],
     "deny": [],
     "ask": []

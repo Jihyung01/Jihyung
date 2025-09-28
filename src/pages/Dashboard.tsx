@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { 
-  ChartBar, 
+import { useNavigate } from 'react-router-dom'
+import {
+  ChartBar,
   CheckSquare,
   Note,
   Calendar as CalendarIcon,
@@ -46,6 +47,7 @@ interface WeeklyGoal {
 }
 
 export function Dashboard() {
+  const navigate = useNavigate()
   const [stats, setStats] = useState<DashboardStats>({
     totalNotes: 0,
     totalTasks: 0,
@@ -61,79 +63,137 @@ export function Dashboard() {
   const [weeklyGoals, setWeeklyGoals] = useState<WeeklyGoal[]>([])
 
   useEffect(() => {
-    // Mock dashboard data
-    const mockStats: DashboardStats = {
-      totalNotes: 23,
-      totalTasks: 15,
-      completedTasks: 8,
-      todayEvents: 4,
-      inboxItems: 7,
-      completionRate: 53,
-      productivityScore: 78,
-      streakDays: 5
+    const fetchDashboardData = async () => {
+      try {
+        // Fetch notes data
+        const notesResponse = await fetch('/api/notes')
+        const notesData = notesResponse.ok ? await notesResponse.json() : []
+
+        // Fetch tasks data
+        const tasksResponse = await fetch('/api/tasks')
+        const tasksData = tasksResponse.ok ? await tasksResponse.json() : []
+
+        // Fetch events data
+        const eventsResponse = await fetch('/api/events')
+        const eventsData = eventsResponse.ok ? await eventsResponse.json() : []
+
+        // Calculate stats from real data
+        const totalNotes = notesData.length || 0
+        const totalTasks = tasksData.length || 0
+        const completedTasks = tasksData.filter((task: any) => task.completed).length || 0
+        const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+        // Filter today's events
+        const today = new Date()
+        const todayEvents = eventsData.filter((event: any) => {
+          const eventDate = new Date(event.date || event.created_at)
+          return eventDate.toDateString() === today.toDateString()
+        }).length || 0
+
+        // Calculate productivity score based on completion rate and activity
+        const activityScore = Math.min(100, (totalNotes + totalTasks + todayEvents) * 5)
+        const productivityScore = Math.round((completionRate * 0.6) + (activityScore * 0.4))
+
+        const calculatedStats: DashboardStats = {
+          totalNotes,
+          totalTasks,
+          completedTasks,
+          todayEvents,
+          inboxItems: 0, // Will be implemented later
+          completionRate,
+          productivityScore,
+          streakDays: 5 // Will be calculated based on daily activity
+        }
+        setStats(calculatedStats)
+
+        // Build recent activity from all data sources
+        const recentActivity: ActivityItem[] = []
+
+        // Add recent notes
+        notesData.slice(0, 5).forEach((note: any) => {
+          recentActivity.push({
+            id: note.id,
+            type: 'note',
+            title: note.title || '제목 없는 노트',
+            timestamp: new Date(note.created_at || note.updated_at || Date.now())
+          })
+        })
+
+        // Add recent tasks
+        tasksData.slice(0, 5).forEach((task: any) => {
+          recentActivity.push({
+            id: task.id,
+            type: 'task',
+            title: task.title || task.name || '제목 없는 태스크',
+            timestamp: new Date(task.created_at || task.updated_at || Date.now()),
+            completed: task.completed || false
+          })
+        })
+
+        // Add recent events
+        eventsData.slice(0, 5).forEach((event: any) => {
+          recentActivity.push({
+            id: event.id,
+            type: 'event',
+            title: event.title || event.name || '제목 없는 일정',
+            timestamp: new Date(event.date || event.created_at || Date.now())
+          })
+        })
+
+        // Sort by timestamp and take latest 5
+        const sortedActivity = recentActivity
+          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+          .slice(0, 5)
+
+        setRecentActivity(sortedActivity)
+
+        // Calculate weekly goals based on current progress
+        const weeklyGoals: WeeklyGoal[] = [
+          {
+            id: '1',
+            title: '주간 태스크 완료',
+            target: 20,
+            current: completedTasks,
+            type: 'tasks'
+          },
+          {
+            id: '2',
+            title: '새 노트 작성',
+            target: 10,
+            current: Math.min(totalNotes, 10),
+            type: 'notes'
+          },
+          {
+            id: '3',
+            title: '집중 작업 시간',
+            target: 40,
+            current: Math.min(28, Math.round(productivityScore * 0.4)),
+            type: 'hours'
+          }
+        ]
+        setWeeklyGoals(weeklyGoals)
+
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error)
+
+        // Fallback to mock data if API calls fail
+        const fallbackStats: DashboardStats = {
+          totalNotes: 0,
+          totalTasks: 0,
+          completedTasks: 0,
+          todayEvents: 0,
+          inboxItems: 0,
+          completionRate: 0,
+          productivityScore: 0,
+          streakDays: 0
+        }
+        setStats(fallbackStats)
+        setRecentActivity([])
+        setWeeklyGoals([])
+      }
     }
-    setStats(mockStats)
 
-    const mockActivity: ActivityItem[] = [
-      {
-        id: '1',
-        type: 'task',
-        title: 'FastAPI 백엔드 구현 완료',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30분 전
-        completed: true
-      },
-      {
-        id: '2',
-        type: 'note',
-        title: 'React 19 새로운 기능들 노트 작성',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2시간 전
-      },
-      {
-        id: '3',
-        type: 'event',
-        title: '팀 스프린트 미팅 참석',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4시간 전
-      },
-      {
-        id: '4',
-        type: 'task',
-        title: 'UI 컴포넌트 리팩토링',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6시간 전
-        completed: false
-      },
-      {
-        id: '5',
-        type: 'note',
-        title: 'AI 기반 코드 리뷰 시스템 아이디어',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12시간 전
-      }
-    ]
-    setRecentActivity(mockActivity)
-
-    const mockGoals: WeeklyGoal[] = [
-      {
-        id: '1',
-        title: '주간 태스크 완료',
-        target: 20,
-        current: 14,
-        type: 'tasks'
-      },
-      {
-        id: '2',
-        title: '새 노트 작성',
-        target: 10,
-        current: 7,
-        type: 'notes'
-      },
-      {
-        id: '3',
-        title: '집중 작업 시간',
-        target: 40,
-        current: 28,
-        type: 'hours'
-      }
-    ]
-    setWeeklyGoals(mockGoals)
+    fetchDashboardData()
   }, [])
 
   const getActivityIcon = (type: string) => {
@@ -202,7 +262,10 @@ export function Dashboard() {
 
       {/* Main Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate('/notes')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -218,7 +281,10 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate('/tasks')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -233,7 +299,10 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate('/calendar')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -248,7 +317,10 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate('/inbox')}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>

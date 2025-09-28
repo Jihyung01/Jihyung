@@ -38,7 +38,8 @@ import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { VideoCall } from '../collaboration/VideoCall';
+import { VideoCall } from '../Collaboration/VideoCall';
+import { useCollaborationSocket } from '../../hooks/useCollaborationSocket';
 import { toast } from 'sonner';
 
 interface Participant {
@@ -80,6 +81,8 @@ interface CollaborationPageProps {
 export const CollaborationPage: React.FC<CollaborationPageProps> = ({
   currentUser = { id: 'user-1', name: '사용자', email: 'user@example.com' }
 }) => {
+  // Socket.IO 연결
+  const collaboration = useCollaborationSocket();
   // Load state from localStorage
   const [activeRoom, setActiveRoom] = useState<MeetingRoom | null>(() => {
     try {
@@ -223,37 +226,27 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
         return;
       }
 
-      const roomId = `room-${Date.now()}`;
-      const room: MeetingRoom = {
-        id: roomId,
+      // Socket.IO에 연결되지 않은 경우 먼저 연결
+      if (!collaboration.isConnected) {
+        collaboration.connect(currentUser);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 연결 대기
+      }
+
+      // 실제 Socket.IO를 통해 방 생성
+      collaboration.createRoom({
         name: newRoom.name,
         description: newRoom.description,
-        participants: [{
-          id: currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email,
-          status: 'online',
-          isVideoEnabled: true,
-          isAudioEnabled: true,
-          joinedAt: new Date().toISOString(),
-          role: 'host'
-        }],
-        createdAt: new Date().toISOString(),
-        scheduledFor: newRoom.scheduledFor || undefined,
-        maxParticipants: newRoom.maxParticipants,
-        isRecording: false,
+        max_participants: newRoom.maxParticipants,
         settings: {
-          allowScreenShare: newRoom.allowScreenShare,
-          allowChat: newRoom.allowChat,
-          requireApproval: newRoom.requireApproval,
-          isLocked: false
+          allow_screen_share: newRoom.allowScreenShare,
+          allow_chat: newRoom.allowChat,
+          require_approval: newRoom.requireApproval,
+          is_locked: false
         }
-      };
+      });
 
-      setRooms(prev => [...prev, room]);
-      setActiveRoom(room);
       setShowCreateDialog(false);
-      
+
       // Reset form
       setNewRoom({
         name: '',
@@ -266,7 +259,6 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
         isPrivate: false
       });
 
-      toast.success(`"${room.name}" 회의실이 생성되었습니다!`);
     } catch (error) {
       console.error('Failed to create room:', error);
       toast.error('회의실 생성에 실패했습니다');
@@ -275,36 +267,15 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
   const joinRoom = async (roomId: string) => {
     try {
-      const room = rooms.find(r => r.id === roomId);
-      if (!room) {
-        toast.error('존재하지 않는 회의실입니다');
-        return;
+      // Socket.IO에 연결되지 않은 경우 먼저 연결
+      if (!collaboration.isConnected) {
+        collaboration.connect(currentUser);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 연결 대기
       }
 
-      if (room.participants.length >= room.maxParticipants) {
-        toast.error('회의실이 가득 찼습니다');
-        return;
-      }
+      // 실제 Socket.IO를 통해 방 참여
+      collaboration.joinRoom(roomId);
 
-      // Add current user to participants
-      const updatedRoom = {
-        ...room,
-        participants: [...room.participants, {
-          id: currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email,
-          status: 'online' as const,
-          isVideoEnabled: true,
-          isAudioEnabled: true,
-          joinedAt: new Date().toISOString(),
-          role: 'participant' as const
-        }]
-      };
-
-      setRooms(prev => prev.map(r => r.id === roomId ? updatedRoom : r));
-      setActiveRoom(updatedRoom);
-      setConnectedParticipants(updatedRoom.participants);
-      toast.success(`"${room.name}" 회의실에 참여했습니다!`);
     } catch (error) {
       console.error('Failed to join room:', error);
       toast.error('회의실 참여에 실패했습니다');
@@ -312,22 +283,15 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
   };
 
   const startVideoCall = () => {
-    if (!activeRoom) return;
+    if (!collaboration.currentRoom) return;
     setInCall(true);
   };
 
   const leaveCall = () => {
     setInCall(false);
-    if (activeRoom) {
-      const updatedRoom = {
-        ...activeRoom,
-        participants: activeRoom.participants.filter(p => p.id !== currentUser.id)
-      };
-      setRooms(prev => prev.map(r => r.id === activeRoom.id ? updatedRoom : r));
-      setActiveRoom(null);
-      setConnectedParticipants([]);
-      toast.success('회의에서 나가셨습니다');
-    }
+    collaboration.leaveRoom();
+    setActiveRoom(null);
+    setConnectedParticipants([]);
   };
 
   const copyRoomLink = (roomId: string) => {
@@ -354,7 +318,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
       <VideoCall
         roomId={activeRoom.id}
         onLeave={leaveCall}
-        participants={connectedParticipants}
+        currentUser={currentUser}
       />
     );
   }
@@ -427,7 +391,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
         </motion.div>
 
         {/* Active Room */}
-        {activeRoom && !inCall && (
+        {collaboration.currentRoom && !inCall && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -440,17 +404,17 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                     <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
                     <div>
                       <CardTitle className="text-green-800 dark:text-green-200">
-                        현재 참여 중: {activeRoom.name}
+                        현재 참여 중: {collaboration.currentRoom.name}
                       </CardTitle>
                       <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                        {activeRoom.participants.length}명 참여 중
+                        {collaboration.participants.length}명 참여 중
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <Button
-                      onClick={() => copyRoomLink(activeRoom.id)}
+                      onClick={() => copyRoomLink(collaboration.currentRoom.id)}
                       variant="outline"
                       size="sm"
                       className="gap-2"
@@ -458,7 +422,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                       <Copy className="h-4 w-4" />
                       링크 복사
                     </Button>
-                    
+
                     <Button
                       onClick={startVideoCall}
                       className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 gap-2"
@@ -469,17 +433,12 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                   </div>
                 </div>
               </CardHeader>
-              
+
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {activeRoom.participants.map(participant => (
+                  {collaboration.participants.map(participant => (
                     <Badge key={participant.id} variant="secondary" className="gap-1">
-                      <div className={`w-2 h-2 rounded-full ${
-                        participant.status === 'online' ? 'bg-green-500' :
-                        participant.status === 'busy' ? 'bg-yellow-500' :
-                        participant.status === 'away' ? 'bg-orange-500' :
-                        'bg-gray-500'
-                      }`} />
+                      <div className={`w-2 h-2 rounded-full bg-green-500`} />
                       {participant.name}
                       {participant.role === 'host' && '👑'}
                     </Badge>

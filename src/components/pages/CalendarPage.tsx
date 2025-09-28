@@ -1,10 +1,14 @@
 
 import { useState, useEffect } from 'react'
-import { Calendar as CalendarIcon, CaretLeft, CaretRight, Plus, List, SquaresFour, Clock } from '@phosphor-icons/react'
+import { Calendar as CalendarIcon, CaretLeft, CaretRight, Plus, List, SquaresFour, Clock, X } from '@phosphor-icons/react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
-import { getCalendarEvents, updateTask, listTasks } from '../../api/client'
+import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
+import { Label } from '../ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
+import { getCalendarEvents, updateTask, listTasks, createCalendarEvent } from '../../api/client'
 import { toast } from 'sonner'
 
 // Import FullCalendar components
@@ -28,6 +32,17 @@ export function CalendarPage({ className }: CalendarPageProps) {
   const [currentView, setCurrentView] = useState<'month' | 'week' | 'day' | 'list'>('month')
   const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [eventForm, setEventForm] = useState({
+    title: '',
+    description: '',
+    start: '',
+    end: '',
+    all_day: false,
+    location: '',
+    color: '#3b82f6'
+  })
 
   useEffect(() => {
     loadCalendarData()
@@ -113,7 +128,83 @@ export function CalendarPage({ className }: CalendarPageProps) {
 
   const handleDateClick = (info: any) => {
     console.log('Date clicked:', info.dateStr)
-    // Could open a modal to create new event/task
+    const clickedDate = info.dateStr
+    setSelectedDate(clickedDate)
+
+    // Set default start and end times
+    const startTime = new Date(clickedDate + 'T09:00:00')
+    const endTime = new Date(clickedDate + 'T10:00:00')
+
+    setEventForm({
+      title: '',
+      description: '',
+      start: startTime.toISOString().slice(0, 16),
+      end: endTime.toISOString().slice(0, 16),
+      all_day: false,
+      location: '',
+      color: '#3b82f6'
+    })
+
+    setIsEventModalOpen(true)
+  }
+
+  const openNewEventModal = () => {
+    const now = new Date()
+    const nextHour = new Date(now.getTime() + 60 * 60 * 1000)
+
+    setEventForm({
+      title: '',
+      description: '',
+      start: now.toISOString().slice(0, 16),
+      end: nextHour.toISOString().slice(0, 16),
+      all_day: false,
+      location: '',
+      color: '#3b82f6'
+    })
+
+    setIsEventModalOpen(true)
+  }
+
+  const handleCreateEvent = async () => {
+    if (!eventForm.title.trim()) {
+      toast.error('제목을 입력해주세요')
+      return
+    }
+
+    try {
+      const eventData = {
+        title: eventForm.title,
+        description: eventForm.description,
+        start: eventForm.all_day ? eventForm.start.split('T')[0] : eventForm.start,
+        end: eventForm.all_day ? eventForm.end.split('T')[0] : eventForm.end,
+        all_day: eventForm.all_day,
+        location: eventForm.location,
+        color: eventForm.color,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }
+
+      await createCalendarEvent(eventData)
+      toast.success('일정이 생성되었습니다')
+
+      setIsEventModalOpen(false)
+      loadCalendarData() // Reload calendar data
+    } catch (error) {
+      console.error('Failed to create event:', error)
+      toast.error('일정 생성에 실패했습니다')
+    }
+  }
+
+  const resetEventForm = () => {
+    setEventForm({
+      title: '',
+      description: '',
+      start: '',
+      end: '',
+      all_day: false,
+      location: '',
+      color: '#3b82f6'
+    })
+    setSelectedDate(null)
   }
 
   const handleEventClick = (info: any) => {
@@ -239,7 +330,7 @@ export function CalendarPage({ className }: CalendarPageProps) {
                 </Button>
               </div>
 
-              <Button size="sm" className="gap-2">
+              <Button size="sm" className="gap-2" onClick={openNewEventModal}>
                 <Plus className="h-4 w-4" />
                 새 일정
               </Button>
@@ -387,6 +478,130 @@ export function CalendarPage({ className }: CalendarPageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Event Creation Modal */}
+      <Dialog open={isEventModalOpen} onOpenChange={(open) => {
+        setIsEventModalOpen(open)
+        if (!open) resetEventForm()
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>새 일정 만들기</DialogTitle>
+            <DialogDescription>
+              {selectedDate ? `${new Date(selectedDate).toLocaleDateString('ko-KR')}` : '새로운 일정을 만드세요'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">제목 *</Label>
+              <Input
+                id="title"
+                value={eventForm.title}
+                onChange={(e) => setEventForm(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="일정 제목을 입력하세요"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">설명</Label>
+              <Textarea
+                id="description"
+                value={eventForm.description}
+                onChange={(e) => setEventForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="일정에 대한 설명을 입력하세요 (선택사항)"
+                rows={3}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="all_day"
+                checked={eventForm.all_day}
+                onChange={(e) => setEventForm(prev => ({ ...prev, all_day: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="all_day">종일 일정</Label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start">시작</Label>
+                <Input
+                  id="start"
+                  type={eventForm.all_day ? "date" : "datetime-local"}
+                  value={eventForm.all_day ? eventForm.start.split('T')[0] : eventForm.start}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setEventForm(prev => ({
+                      ...prev,
+                      start: eventForm.all_day ? value : value,
+                      end: eventForm.all_day ? value : prev.end
+                    }))
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="end">종료</Label>
+                <Input
+                  id="end"
+                  type={eventForm.all_day ? "date" : "datetime-local"}
+                  value={eventForm.all_day ? eventForm.end.split('T')[0] : eventForm.end}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setEventForm(prev => ({
+                      ...prev,
+                      end: eventForm.all_day ? value : value
+                    }))
+                  }}
+                  disabled={eventForm.all_day}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">장소</Label>
+              <Input
+                id="location"
+                value={eventForm.location}
+                onChange={(e) => setEventForm(prev => ({ ...prev, location: e.target.value }))}
+                placeholder="장소를 입력하세요 (선택사항)"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="color">색상</Label>
+              <div className="flex gap-2">
+                {['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'].map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`w-8 h-8 rounded-full border-2 ${
+                      eventForm.color === color ? 'border-gray-400' : 'border-gray-200'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setEventForm(prev => ({ ...prev, color }))}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEventModalOpen(false)}
+            >
+              취소
+            </Button>
+            <Button onClick={handleCreateEvent}>
+              일정 만들기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

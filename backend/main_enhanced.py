@@ -34,6 +34,9 @@ import re
 import hashlib
 import base64
 
+# Import collaboration server
+from .collaboration_server import setup_collaboration_routes
+
 # Load environment variables
 load_dotenv()
 
@@ -130,6 +133,9 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+# Setup collaboration routes
+setup_collaboration_routes(app)
 
 # Enhanced CORS middleware
 app.add_middleware(
