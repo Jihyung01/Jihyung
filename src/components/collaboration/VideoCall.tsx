@@ -17,7 +17,7 @@ import {
   VolumeX,
   Maximize,
   Minimize,
-  Record,
+  Circle,
   Download,
   Share
 } from 'lucide-react';
@@ -407,7 +407,7 @@ export const VideoCall: React.FC<VideoCallProps> = ({ roomId, onLeave, currentUs
             size="lg"
             className="rounded-full h-12 w-12 p-0"
           >
-            <Record className="h-5 w-5" />
+            <Circle className="h-5 w-5" />
           </Button>
 
           {recordingBlob && (
