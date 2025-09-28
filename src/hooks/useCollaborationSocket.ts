@@ -51,6 +51,8 @@ export interface CollaborationState {
 }
 
 export function useCollaborationSocket(serverUrl: string = 'http://localhost:8006') {
+  // Collaboration features temporarily disabled
+  const COLLABORATION_ENABLED = false;
   const socketRef = useRef<Socket | null>(null)
   const [state, setState] = useState<CollaborationState>({
     isConnected: false,
@@ -76,6 +78,11 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
 
   // Socket 연결 초기화
   const connect = useCallback((user: Omit<User, 'socket_id' | 'joined_at' | 'role'>) => {
+    if (!COLLABORATION_ENABLED) {
+      console.log('Collaboration features are disabled')
+      return
+    }
+
     if (socketRef.current?.connected) {
       return
     }

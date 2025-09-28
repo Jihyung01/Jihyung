@@ -54,6 +54,7 @@ loguru==0.7.2
 
 # WebSocket 지원
 websockets==12.0
+python-socketio==5.10.0
 
 # 기타 유틸리티
 pydantic-settings==2.1.0
