@@ -5,6 +5,14 @@ const API_BASE = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_
   ? '/api'
   : 'http://localhost:8006/api'
 
+// Debug: Log API configuration
+console.log('🔧 API Configuration:', {
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  API_BASE,
+  NODE_ENV: process.env.NODE_ENV
+})
+
 // Check if we should use mock API (when backend is not available)
 // Use real API in production and development
 const USE_MOCK_API = false
