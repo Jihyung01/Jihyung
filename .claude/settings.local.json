@@ -25,7 +25,8 @@
       "Bash(python:*)",
       "Bash(npm run dev:fe:*)",
       "Bash(git ls-tree:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

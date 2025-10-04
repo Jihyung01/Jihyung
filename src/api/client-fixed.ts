@@ -1,10 +1,13 @@
-const API_BASE = process.env.NODE_ENV === 'production'
+// API base URL configuration
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+  : process.env.NODE_ENV === 'production'
   ? '/api'
   : 'http://localhost:8006/api'
 
 // Check if we should use mock API (when backend is not available)
-// Force mock API in production since backend is not deployed
-const USE_MOCK_API = true
+// Use real API in production and development
+const USE_MOCK_API = false
 
 interface ApiConfig {
   useAuth: boolean
