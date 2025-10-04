@@ -1,6 +1,6 @@
 // API base URL configuration
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+const API_BASE = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL)
+  ? `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL}/api`
   : process.env.NODE_ENV === 'production'
   ? '/api'
   : 'http://localhost:8006/api'
