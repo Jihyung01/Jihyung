@@ -860,7 +860,7 @@ def hash_password(password: str) -> str:
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False))):
     # AUTH_ENABLED가 false면 항상 데모 유저 반환 (자동 인증)
-    if not AUTH_ENABLED or not credentials:
+    if not AUTH_ENABLED:
         return {
             "id": "12345678-1234-1234-1234-123456789012",  # 유효한 UUID 형식
             "name": "Demo User",
@@ -872,11 +872,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(H
             "is_premium": False,
             "last_login": datetime.utcnow()
         }
-    
+
     # AUTH_ENABLED가 true인 경우에만 토큰 검증
     if not credentials:
         raise HTTPException(status_code=401, detail="Authorization header missing")
-    
+
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id: str = payload.get("sub")
