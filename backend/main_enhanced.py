@@ -147,12 +147,13 @@ app.add_middleware(
         "http://127.0.0.1:8006",
         "http://0.0.0.0:5178",
         "http://0.0.0.0:8006",
+        "https://xihyung.vercel.app",
         "https://jihyung.vercel.app",
         "https://jihyung-git-main.vercel.app",
         "https://preview.vercel.app",
         "https://*.vercel.app"
     ],
-    allow_credentials=True,  # 인증을 위해 다시 활성화
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"]
