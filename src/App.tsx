@@ -78,6 +78,21 @@ const HolographicDisplay = () => {
 }
 
 // =====================
+// UTILITY FUNCTIONS - 유틸리티 함수
+// =====================
+const safeToISOString = (date: any): string => {
+  try {
+    if (date instanceof Date && !isNaN(date.getTime())) {
+      return date.toISOString()
+    }
+    return new Date().toISOString()
+  } catch (error) {
+    console.warn('Date conversion error:', error)
+    return new Date().toISOString()
+  }
+}
+
+// =====================
 // REAL DATA MANAGEMENT HOOKS - 실제 데이터 관리 시스템
 // =====================
 const useRealDataManager = () => {
@@ -104,8 +119,8 @@ const useRealDataManager = () => {
     const newNote: Note = {
       ...note,
       id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: safeToISOString(new Date()),
+      updatedAt: safeToISOString(new Date()),
       tags: note.tags || [],
       collaborators: note.collaborators || []
     }
@@ -120,8 +135,8 @@ const useRealDataManager = () => {
     const newTask: Task = {
       ...task,
       id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: safeToISOString(new Date()),
+      updatedAt: safeToISOString(new Date()),
       tags: task.tags || [],
       subtasks: task.subtasks || [],
       dependencies: task.dependencies || []
@@ -137,8 +152,8 @@ const useRealDataManager = () => {
     const newEvent: Event = {
       ...event,
       id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: safeToISOString(new Date()),
+      updatedAt: safeToISOString(new Date()),
       attendees: event.attendees || [],
       reminders: event.reminders || []
     }
@@ -152,7 +167,7 @@ const useRealDataManager = () => {
   const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
     const updatedTasks = tasks.map(task => 
       task.id === taskId 
-        ? { ...task, ...updates, updatedAt: new Date().toISOString() }
+        ? { ...task, ...updates, updatedAt: safeToISOString(new Date()) }
         : task
     )
     setTasks(updatedTasks)
@@ -210,7 +225,7 @@ const useRealAIAssistant = () => {
       id: Date.now().toString(),
       role: 'user' as const,
       content: message,
-      timestamp: new Date().toISOString()
+      timestamp: safeToISOString(new Date())
     }
     
     setConversation(prev => [...prev, userMessage])
@@ -238,7 +253,7 @@ const useRealAIAssistant = () => {
         id: (Date.now() + 1).toString(),
         role: 'assistant' as const,
         content: data.response || 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date().toISOString()
+        timestamp: safeToISOString(new Date())
       }
 
       setConversation(prev => [...prev, assistantMessage])
@@ -250,7 +265,7 @@ const useRealAIAssistant = () => {
         id: (Date.now() + 1).toString(),
         role: 'assistant' as const,
         content: 'I apologize, but I\'m experiencing technical difficulties. Please check your connection and try again.',
-        timestamp: new Date().toISOString()
+        timestamp: safeToISOString(new Date())
       }
       setConversation(prev => [...prev, errorMessage])
       toast.error('AI service temporarily unavailable')
@@ -300,19 +315,28 @@ const RealWorkingCalendar: React.FC<{
   // 날짜 더블클릭 핸들러 - 실제 이벤트 생성
   const handleDateDoubleClick = (date: Date) => {
     setSelectedDate(date)
-    const dateStr = date.toISOString().split('T')[0]
-    setEventForm({
-      title: '',
-      description: '',
-      startDate: `${dateStr}T09:00`,
-      endDate: `${dateStr}T10:00`,
-      isAllDay: false,
-      location: '',
-      tags: []
-    })
-    setEditingEvent(null)
-    setShowEventModal(true)
-    toast.success(`Creating event for ${date.toLocaleDateString()}`)
+    try {
+      // Safely convert date to ISO string, fallback if invalid
+      const isoStr = date instanceof Date && !isNaN(date.getTime()) 
+        ? date.toISOString() 
+        : new Date().toISOString()
+      const dateStr = isoStr.split('T')[0]
+      setEventForm({
+        title: '',
+        description: '',
+        startDate: `${dateStr}T09:00`,
+        endDate: `${dateStr}T10:00`,
+        isAllDay: false,
+        location: '',
+        tags: []
+      })
+      setEditingEvent(null)
+      setShowEventModal(true)
+      toast.success(`Creating event for ${date.toLocaleDateString()}`)
+    } catch (error) {
+      console.error('Error handling date selection:', error)
+      toast.error('Error creating event')
+    }
   }
 
   // 이벤트 저장
@@ -382,7 +406,7 @@ const RealWorkingCalendar: React.FC<{
 
       days.push(
         <motion.div
-          key={current.toISOString()}
+          key={safeToISOString(current)}
           onDoubleClick={() => handleDateDoubleClick(new Date(current))}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -1661,10 +1685,13 @@ function SuperAISecondBrainApp() {
     try {
       setSuperAppState(prev => ({ ...prev, loading: true, error: null }))
       
+      const startDate = safeToISOString(new Date())
+      const endDate = safeToISOString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
+      
       const [notes, tasks, events, user] = await Promise.all([
         enhancedAPI.getNotes(),
         enhancedAPI.getTasks(),
-        enhancedAPI.getCalendarEvents(new Date().toISOString(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()),
+        enhancedAPI.getCalendarEvents(startDate, endDate),
         Promise.resolve({ id: 1, name: 'User', email: 'user@example.com' })
       ])
 

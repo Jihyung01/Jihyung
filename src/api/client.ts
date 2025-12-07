@@ -5,10 +5,45 @@ interface ApiConfig {
   token?: string
 }
 
-// Get config from environment
+// Get config from environment or localStorage
 const config: ApiConfig = {
-  useAuth: !!import.meta.env.VITE_API_TOKEN,
-  token: import.meta.env.VITE_API_TOKEN
+  useAuth: !!import.meta.env.VITE_API_TOKEN || typeof localStorage !== 'undefined',
+  token: import.meta.env.VITE_API_TOKEN || (typeof localStorage !== 'undefined' ? localStorage.getItem('api_token') || undefined : undefined)
+}
+
+// Initialize demo token if needed
+async function initializeDemoToken() {
+  if (!config.token && typeof localStorage !== 'undefined') {
+    try {
+      // Try to create demo user and get token
+      const response = await fetch(`${API_BASE}/auth/create-demo-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const token = data.access_token || data.token || 'demo-token'
+        config.token = token
+        localStorage.setItem('api_token', token)
+        console.log('✅ Demo token initialized')
+      } else {
+        // Fallback to demo token
+        config.token = `demo-${Math.random().toString(36).substr(2, 9)}`
+        localStorage.setItem('api_token', config.token)
+      }
+    } catch (error) {
+      // Fallback demo token
+      config.token = `demo-${Math.random().toString(36).substr(2, 9)}`
+      localStorage.setItem('api_token', config.token)
+      console.warn('Using fallback demo token')
+    }
+  }
+}
+
+// Initialize on module load
+if (typeof window !== 'undefined') {
+  initializeDemoToken()
 }
 
 // Auth headers helper
@@ -39,8 +74,18 @@ async function request<T>(
     })
 
     if (!response.ok) {
+      // Handle 401 - try to re-initialize token
+      if (response.status === 401) {
+        console.warn('401 Unauthorized - attempting to reinitialize token')
+        await initializeDemoToken()
+        // Retry with new token
+        return request<T>(path, options, controller)
+      }
+      
       const errorText = await response.text()
-      throw new Error(errorText || `HTTP ${response.status}`)
+      const error = new Error(errorText || `HTTP ${response.status}`)
+      ;(error as any).status = response.status
+      throw error
     }
 
     const contentType = response.headers.get('content-type')
@@ -53,7 +98,7 @@ async function request<T>(
     if (error instanceof Error && error.name === 'AbortError') {
       throw error
     }
-    console.error('API request failed:', error)
+    console.error(`API Error: ${(error as any).status || 'unknown'}`, error)
     throw error
   }
 }
