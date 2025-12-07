@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Video, 
-  Users, 
-  MessageSquare, 
-  Share, 
+import React, { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Video,
+  Users,
+  MessageSquare,
+  Share,
   Calendar,
   FileText,
   Target,
@@ -28,94 +28,88 @@ import {
   AlertCircle,
   CheckCircle2,
   Shield,
-  Globe
-} from 'lucide-react';
-import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
-import { Badge } from '../ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { VideoCall } from '../Collaboration/VideoCall';
-import { useCollaborationSocket } from '../../hooks/useCollaborationSocket';
-import { toast } from 'sonner';
+  Globe,
+} from 'lucide-react'
+import { Button } from '../ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
+import { Badge } from '../ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { Label } from '../ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { VideoCall } from '../Collaboration/VideoCall'
+import { useCollaborationSocket } from '../../hooks/useCollaborationSocket'
+import { toast } from 'sonner'
 
 interface Participant {
-  id: string;
-  name: string;
-  email: string;
-  status: 'online' | 'busy' | 'away' | 'offline';
-  isVideoEnabled: boolean;
-  isAudioEnabled: boolean;
-  joinedAt: string;
-  role: 'host' | 'participant' | 'viewer';
+  id: string
+  name: string
+  email: string
+  status: 'online' | 'busy' | 'away' | 'offline'
+  isVideoEnabled: boolean
+  isAudioEnabled: boolean
+  joinedAt: string
+  role: 'host' | 'participant' | 'viewer'
 }
 
 interface MeetingRoom {
-  id: string;
-  name: string;
-  description: string;
-  participants: Participant[];
-  createdAt: string;
-  scheduledFor?: string;
-  maxParticipants: number;
-  isRecording: boolean;
+  id: string
+  name: string
+  description: string
+  participants: Participant[]
+  createdAt: string
+  scheduledFor?: string
+  maxParticipants: number
+  isRecording: boolean
   settings: {
-    allowScreenShare: boolean;
-    allowChat: boolean;
-    requireApproval: boolean;
-    isLocked: boolean;
-  };
+    allowScreenShare: boolean
+    allowChat: boolean
+    requireApproval: boolean
+    isLocked: boolean
+  }
 }
 
 interface CollaborationPageProps {
   currentUser: {
-    id: string;
-    name: string;
-    email: string;
-  };
+    id: string
+    name: string
+    email: string
+  }
 }
 
 export const CollaborationPage: React.FC<CollaborationPageProps> = ({
-  currentUser = { id: 'user-1', name: '사용자', email: 'user@example.com' }
+  currentUser = { id: 'user-1', name: '사용자', email: 'user@example.com' },
 }) => {
   // Socket.IO 연결
-  const collaboration = useCollaborationSocket();
+  const collaboration = useCollaborationSocket()
   // Load state from localStorage
   const [activeRoom, setActiveRoom] = useState<MeetingRoom | null>(() => {
     try {
-      const saved = localStorage.getItem('collaboration-active-room');
-      return saved ? JSON.parse(saved) : null;
+      const saved = localStorage.getItem('collaboration-active-room')
+      return saved ? JSON.parse(saved) : null
     } catch {
-      return null;
+      return null
     }
-  });
+  })
 
   const [inCall, setInCall] = useState(() => {
     try {
-      const saved = localStorage.getItem('collaboration-in-call');
-      return saved ? JSON.parse(saved) : false;
+      const saved = localStorage.getItem('collaboration-in-call')
+      return saved ? JSON.parse(saved) : false
     } catch {
-      return false;
+      return false
     }
-  });
+  })
 
-  const [rooms, setRooms] = useState<MeetingRoom[]>(() => {
-    try {
-      const saved = localStorage.getItem('collaboration-rooms');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showJoinDialog, setShowJoinDialog] = useState(false);
-  const [connectedParticipants, setConnectedParticipants] = useState<Participant[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  
+  // rooms 상태는 소켓에서 받아온 rooms를 사용
+  const [rooms, setRooms] = useState<MeetingRoom[]>([])
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showJoinDialog, setShowJoinDialog] = useState(false)
+  const [connectedParticipants, setConnectedParticipants] = useState<Participant[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+
   // Create room form state
   const [newRoom, setNewRoom] = useState({
     name: '',
@@ -125,11 +119,11 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
     allowScreenShare: true,
     allowChat: true,
     requireApproval: false,
-    isPrivate: false
-  });
+    isPrivate: false,
+  })
 
   // Join room form state
-  const [joinRoomId, setJoinRoomId] = useState('');
+  const [joinRoomId, setJoinRoomId] = useState('')
 
   // Mock data for development
   const mockRooms: MeetingRoom[] = [
@@ -146,8 +140,8 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
           isVideoEnabled: true,
           isAudioEnabled: true,
           joinedAt: new Date().toISOString(),
-          role: 'host'
-        }
+          role: 'host',
+        },
       ],
       createdAt: new Date().toISOString(),
       scheduledFor: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
@@ -157,8 +151,8 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
         allowScreenShare: true,
         allowChat: true,
         requireApproval: false,
-        isLocked: false
-      }
+        isLocked: false,
+      },
     },
     {
       id: 'room-2',
@@ -172,64 +166,54 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
         allowScreenShare: true,
         allowChat: true,
         requireApproval: true,
-        isLocked: false
-      }
-    }
-  ];
+        isLocked: false,
+      },
+    },
+  ]
 
   // Save state to localStorage when it changes
   useEffect(() => {
-    localStorage.setItem('collaboration-active-room', JSON.stringify(activeRoom));
-  }, [activeRoom]);
+    localStorage.setItem('collaboration-active-room', JSON.stringify(activeRoom))
+  }, [activeRoom])
 
   useEffect(() => {
-    localStorage.setItem('collaboration-in-call', JSON.stringify(inCall));
-  }, [inCall]);
+    localStorage.setItem('collaboration-in-call', JSON.stringify(inCall))
+  }, [inCall])
 
   useEffect(() => {
-    localStorage.setItem('collaboration-rooms', JSON.stringify(rooms));
-  }, [rooms]);
+    localStorage.setItem('collaboration-rooms', JSON.stringify(rooms))
+  }, [rooms])
 
   useEffect(() => {
-    // Load rooms (check localStorage first, then load mock data if empty)
-    const loadRooms = async () => {
-      try {
-        setLoading(true);
+    // 소켓에서 rooms가 변경될 때마다 동기화
+    setLoading(true)
+    if (collaboration.rooms && collaboration.rooms.length > 0) {
+      setRooms(collaboration.rooms)
+      setLoading(false)
+    } else {
+      setRooms([])
+      setLoading(false)
+    }
+  }, [collaboration.rooms])
 
-        // If no rooms in localStorage, load mock data
-        if (rooms.length === 0) {
-          // Simulate API call
-          await new Promise(resolve => setTimeout(resolve, 500));
-          setRooms(mockRooms);
-        }
-      } catch (error) {
-        console.error('Failed to load rooms:', error);
-        toast.error('회의실을 불러올 수 없습니다');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadRooms();
-  }, []);
-  
   // Filter rooms based on search
-  const filteredRooms = rooms.filter(room =>
-    room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    room.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredRooms = rooms.filter(
+    room =>
+      room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      room.description.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   const createRoom = async () => {
     try {
       if (!newRoom.name.trim()) {
-        toast.error('회의실 이름을 입력해주세요');
-        return;
+        toast.error('회의실 이름을 입력해주세요')
+        return
       }
 
       // Socket.IO에 연결되지 않은 경우 먼저 연결
       if (!collaboration.isConnected) {
-        collaboration.connect(currentUser);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 연결 대기
+        collaboration.connect(currentUser)
+        await new Promise(resolve => setTimeout(resolve, 1000)) // 연결 대기
       }
 
       // 실제 Socket.IO를 통해 방 생성
@@ -241,11 +225,11 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
           allow_screen_share: newRoom.allowScreenShare,
           allow_chat: newRoom.allowChat,
           require_approval: newRoom.requireApproval,
-          is_locked: false
-        }
-      });
+          is_locked: false,
+        },
+      })
 
-      setShowCreateDialog(false);
+      setShowCreateDialog(false)
 
       // Reset form
       setNewRoom({
@@ -256,90 +240,78 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
         allowScreenShare: true,
         allowChat: true,
         requireApproval: false,
-        isPrivate: false
-      });
-
+        isPrivate: false,
+      })
     } catch (error) {
-      console.error('Failed to create room:', error);
-      toast.error('회의실 생성에 실패했습니다');
+      console.error('Failed to create room:', error)
+      toast.error('회의실 생성에 실패했습니다')
     }
-  };
+  }
 
   const joinRoom = async (roomId: string) => {
     try {
       // Socket.IO에 연결되지 않은 경우 먼저 연결
       if (!collaboration.isConnected) {
-        collaboration.connect(currentUser);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 연결 대기
+        collaboration.connect(currentUser)
+        await new Promise(resolve => setTimeout(resolve, 1000)) // 연결 대기
       }
 
       // 실제 Socket.IO를 통해 방 참여
-      collaboration.joinRoom(roomId);
-
+      collaboration.joinRoom(roomId)
     } catch (error) {
-      console.error('Failed to join room:', error);
-      toast.error('회의실 참여에 실패했습니다');
+      console.error('Failed to join room:', error)
+      toast.error('회의실 참여에 실패했습니다')
     }
-  };
+  }
 
   const startVideoCall = () => {
-    if (!collaboration.currentRoom) return;
-    setInCall(true);
-  };
+    if (!collaboration.currentRoom) return
+    setInCall(true)
+  }
 
   const leaveCall = () => {
-    setInCall(false);
-    collaboration.leaveRoom();
-    setActiveRoom(null);
-    setConnectedParticipants([]);
-  };
+    setInCall(false)
+    collaboration.leaveRoom()
+    setActiveRoom(null)
+    setConnectedParticipants([])
+  }
 
   const copyRoomLink = (roomId: string) => {
-    const link = `${window.location.origin}/collaboration/${roomId}`;
-    navigator.clipboard.writeText(link);
-    toast.success('회의실 링크가 복사되었습니다!');
-  };
+    const link = `${window.location.origin}/collaboration/${roomId}`
+    navigator.clipboard.writeText(link)
+    toast.success('회의실 링크가 복사되었습니다!')
+  }
 
   const shareRoom = (room: MeetingRoom) => {
     if (navigator.share) {
       navigator.share({
         title: room.name,
         text: room.description,
-        url: `${window.location.origin}/collaboration/${room.id}`
-      });
+        url: `${window.location.origin}/collaboration/${room.id}`,
+      })
     } else {
-      copyRoomLink(room.id);
+      copyRoomLink(room.id)
     }
-  };
+  }
 
   // Show video call if in call
   if (inCall && activeRoom) {
-    return (
-      <VideoCall
-        roomId={activeRoom.id}
-        onLeave={leaveCall}
-        currentUser={currentUser}
-      />
-    );
+    return <VideoCall roomId={activeRoom.id} onLeave={leaveCall} currentUser={currentUser} />
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20">
       <div className="max-w-7xl mx-auto p-6">
         {/* Enhanced Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/20 dark:border-gray-700/30 shadow-xl">
             <CardContent className="p-6">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
-                  <motion.div 
+                  <motion.div
                     className="p-3 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl text-white shadow-lg"
                     whileHover={{ scale: 1.05, rotate: 5 }}
-                    transition={{ type: "spring", stiffness: 300 }}
+                    transition={{ type: 'spring', stiffness: 300 }}
                   >
                     <Users className="h-6 w-6" />
                   </motion.div>
@@ -352,20 +324,20 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
                       placeholder="회의실 검색..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={e => setSearchQuery(e.target.value)}
                       className="pl-10 w-64 bg-white/80 dark:bg-gray-700/80 border-white/30 dark:border-gray-600/30 rounded-xl"
                     />
                   </div>
-                  
+
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    <Button 
+                    <Button
                       onClick={() => setShowJoinDialog(true)}
                       variant="outline"
                       className="gap-2 bg-white/60 dark:bg-gray-700/60 border-white/30 dark:border-gray-600/30 rounded-xl"
@@ -374,14 +346,13 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                       링크로 참여
                     </Button>
                   </motion.div>
-                  
+
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    <Button 
+                    <Button
                       onClick={() => setShowCreateDialog(true)}
                       className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 gap-2 rounded-xl shadow-lg"
                     >
-                      <Plus className="h-4 w-4" />
-                      새 회의실 생성
+                      <Plus className="h-4 w-4" />새 회의실 생성
                     </Button>
                   </motion.div>
                 </div>
@@ -474,11 +445,13 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
               >
                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                   <Search className="h-4 w-4" />
-                  <span>"{searchQuery}"에 대한 검색 결과 ({filteredRooms.length}개)</span>
+                  <span>
+                    "{searchQuery}"에 대한 검색 결과 ({filteredRooms.length}개)
+                  </span>
                 </div>
               </motion.div>
             )}
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRooms.map((room, index) => (
                 <motion.div
@@ -489,15 +462,16 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                   whileHover={{ y: -5 }}
                   className="group"
                 >
-                  <Card className="hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/20 dark:border-gray-700/20 rounded-2xl overflow-hidden group-hover:border-blue-200 dark:group-hover:border-blue-700"
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            joinRoom(room.id);
-                          }
-                        }}
-                        aria-label={`회의실: ${room.name}, ${room.participants.length}명 참여 중`}
+                  <Card
+                    className="hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/20 dark:border-gray-700/20 rounded-2xl overflow-hidden group-hover:border-blue-200 dark:group-hover:border-blue-700"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        joinRoom(room.id)
+                      }
+                    }}
+                    aria-label={`회의실: ${room.name}, ${room.participants.length}명 참여 중`}
                   >
                     <CardHeader className="bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-800 dark:to-blue-900/20 pb-4">
                       <div className="flex items-start justify-between">
@@ -507,13 +481,15 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                               {room.name}
                             </CardTitle>
                             {room.participants.length > 0 && (
-                              <motion.div 
+                              <motion.div
                                 className="flex items-center gap-1"
                                 animate={{ scale: [1, 1.1, 1] }}
                                 transition={{ repeat: Infinity, duration: 2 }}
                               >
                                 <div className="w-2 h-2 bg-green-500 rounded-full" />
-                                <span className="text-xs text-green-600 dark:text-green-400 font-medium">활성</span>
+                                <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                                  활성
+                                </span>
                               </motion.div>
                             )}
                           </div>
@@ -523,27 +499,36 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                             </p>
                           )}
                         </div>
-                        
+
                         <div className="flex items-center gap-2 ml-3">
                           {room.settings.allowScreenShare && (
-                            <div className="p-1 bg-blue-100 dark:bg-blue-900/50 rounded" title="화면 공유 가능">
+                            <div
+                              className="p-1 bg-blue-100 dark:bg-blue-900/50 rounded"
+                              title="화면 공유 가능"
+                            >
                               <Monitor className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                             </div>
                           )}
                           {room.settings.allowChat && (
-                            <div className="p-1 bg-green-100 dark:bg-green-900/50 rounded" title="채팅 가능">
+                            <div
+                              className="p-1 bg-green-100 dark:bg-green-900/50 rounded"
+                              title="채팅 가능"
+                            >
                               <MessageSquare className="h-3 w-3 text-green-600 dark:text-green-400" />
                             </div>
                           )}
                           {room.settings.requireApproval && (
-                            <div className="p-1 bg-orange-100 dark:bg-orange-900/50 rounded" title="승인 필요">
+                            <div
+                              className="p-1 bg-orange-100 dark:bg-orange-900/50 rounded"
+                              title="승인 필요"
+                            >
                               <Shield className="h-3 w-3 text-orange-600 dark:text-orange-400" />
                             </div>
                           )}
                         </div>
                       </div>
                     </CardHeader>
-                
+
                     <CardContent className="p-6">
                       <div className="space-y-4">
                         {/* Participants */}
@@ -553,7 +538,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                             <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                               {room.participants.length}/{room.maxParticipants}명 참여
                             </span>
-                            
+
                             {room.participants.length > 0 && (
                               <div className="flex -space-x-2 ml-2">
                                 {room.participants.slice(0, 3).map((participant, idx) => (
@@ -581,9 +566,12 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                               </div>
                             )}
                           </div>
-                          
+
                           {room.participants.length >= room.maxParticipants && (
-                            <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+                            <Badge
+                              variant="secondary"
+                              className="text-xs bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                            >
                               만석
                             </Badge>
                           )}
@@ -598,8 +586,9 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                                 month: 'short',
                                 day: 'numeric',
                                 hour: '2-digit',
-                                minute: '2-digit'
-                              })} 예정
+                                minute: '2-digit',
+                              })}{' '}
+                              예정
                             </span>
                           </div>
                         )}
@@ -607,9 +596,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                         {/* Room Status */}
                         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                           <Globe className="h-3 w-3" />
-                          <span>
-                            {new Date(room.createdAt).toLocaleDateString('ko-KR')} 생성
-                          </span>
+                          <span>{new Date(room.createdAt).toLocaleDateString('ko-KR')} 생성</span>
                           {room.isRecording && (
                             <>
                               <span>•</span>
@@ -623,25 +610,31 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
                         {/* Enhanced Actions */}
                         <div className="flex items-center gap-2 pt-2">
-                          <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                          <motion.div
+                            className="flex-1"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
                             <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                joinRoom(room.id);
+                              onClick={e => {
+                                e.stopPropagation()
+                                joinRoom(room.id)
                               }}
                               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-lg transition-all duration-300"
                               disabled={room.participants.length >= room.maxParticipants}
                             >
                               <UserPlus className="h-4 w-4 mr-2" />
-                              {room.participants.length >= room.maxParticipants ? '만석' : '참여하기'}
+                              {room.participants.length >= room.maxParticipants
+                                ? '만석'
+                                : '참여하기'}
                             </Button>
                           </motion.div>
-                          
+
                           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                             <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                shareRoom(room);
+                              onClick={e => {
+                                e.stopPropagation()
+                                shareRoom(room)
                               }}
                               variant="outline"
                               size="sm"
@@ -654,10 +647,10 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                         </div>
                       </div>
                     </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
 
             {/* No Search Results */}
             {searchQuery && filteredRooms.length === 0 && (
@@ -673,11 +666,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                 <p className="text-gray-500 dark:text-gray-400 mb-6">
                   "{searchQuery}"에 해당하는 회의실을 찾을 수 없습니다
                 </p>
-                <Button
-                  onClick={() => setSearchQuery('')}
-                  variant="outline"
-                  className="gap-2"
-                >
+                <Button onClick={() => setSearchQuery('')} variant="outline" className="gap-2">
                   <RefreshCw className="h-4 w-4" />
                   검색 초기화
                 </Button>
@@ -708,8 +697,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                     onClick={() => setShowCreateDialog(true)}
                     className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 gap-2 rounded-xl shadow-lg"
                   >
-                    <Plus className="h-4 w-4" />
-                    첫 번째 회의실 생성
+                    <Plus className="h-4 w-4" />첫 번째 회의실 생성
                   </Button>
                 </motion.div>
               </motion.div>
@@ -722,18 +710,17 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                새 회의실 생성
+                <Plus className="h-5 w-5" />새 회의실 생성
               </DialogTitle>
             </DialogHeader>
-            
+
             <div className="space-y-6 py-4">
               <div className="space-y-2">
                 <Label>회의실 이름</Label>
                 <Input
                   placeholder="예: 주간 기획 회의"
                   value={newRoom.name}
-                  onChange={(e) => setNewRoom(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={e => setNewRoom(prev => ({ ...prev, name: e.target.value }))}
                 />
               </div>
 
@@ -742,7 +729,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                 <Textarea
                   placeholder="회의 목적이나 안건을 간단히 설명해주세요"
                   value={newRoom.description}
-                  onChange={(e) => setNewRoom(prev => ({ ...prev, description: e.target.value }))}
+                  onChange={e => setNewRoom(prev => ({ ...prev, description: e.target.value }))}
                 />
               </div>
 
@@ -751,7 +738,9 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                   <Label>최대 참가자</Label>
                   <Select
                     value={newRoom.maxParticipants.toString()}
-                    onValueChange={(value) => setNewRoom(prev => ({ ...prev, maxParticipants: parseInt(value) }))}
+                    onValueChange={value =>
+                      setNewRoom(prev => ({ ...prev, maxParticipants: parseInt(value) }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -770,7 +759,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                   <Input
                     type="datetime-local"
                     value={newRoom.scheduledFor}
-                    onChange={(e) => setNewRoom(prev => ({ ...prev, scheduledFor: e.target.value }))}
+                    onChange={e => setNewRoom(prev => ({ ...prev, scheduledFor: e.target.value }))}
                   />
                 </div>
               </div>
@@ -786,7 +775,9 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                     <input
                       type="checkbox"
                       checked={newRoom.allowScreenShare}
-                      onChange={(e) => setNewRoom(prev => ({ ...prev, allowScreenShare: e.target.checked }))}
+                      onChange={e =>
+                        setNewRoom(prev => ({ ...prev, allowScreenShare: e.target.checked }))
+                      }
                       className="rounded"
                     />
                   </div>
@@ -799,7 +790,7 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                     <input
                       type="checkbox"
                       checked={newRoom.allowChat}
-                      onChange={(e) => setNewRoom(prev => ({ ...prev, allowChat: e.target.checked }))}
+                      onChange={e => setNewRoom(prev => ({ ...prev, allowChat: e.target.checked }))}
                       className="rounded"
                     />
                   </div>
@@ -812,7 +803,9 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                     <input
                       type="checkbox"
                       checked={newRoom.requireApproval}
-                      onChange={(e) => setNewRoom(prev => ({ ...prev, requireApproval: e.target.checked }))}
+                      onChange={e =>
+                        setNewRoom(prev => ({ ...prev, requireApproval: e.target.checked }))
+                      }
                       className="rounded"
                     />
                   </div>
@@ -844,14 +837,14 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
                 링크로 회의실 참여
               </DialogTitle>
             </DialogHeader>
-            
+
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>회의실 ID 또는 링크</Label>
                 <Input
                   placeholder="회의실 ID 또는 전체 링크를 입력하세요"
                   value={joinRoomId}
-                  onChange={(e) => setJoinRoomId(e.target.value)}
+                  onChange={e => setJoinRoomId(e.target.value)}
                 />
                 <p className="text-sm text-gray-500">
                   예: room-123 또는 https://yourapp.com/collaboration/room-123
@@ -865,11 +858,12 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
               </Button>
               <Button
                 onClick={() => {
-                  const roomId = joinRoomId.includes('/') ? 
-                    joinRoomId.split('/').pop() || joinRoomId : joinRoomId;
-                  joinRoom(roomId);
-                  setShowJoinDialog(false);
-                  setJoinRoomId('');
+                  const roomId = joinRoomId.includes('/')
+                    ? joinRoomId.split('/').pop() || joinRoomId
+                    : joinRoomId
+                  joinRoom(roomId)
+                  setShowJoinDialog(false)
+                  setJoinRoomId('')
                 }}
                 disabled={!joinRoomId.trim()}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
@@ -882,5 +876,5 @@ export const CollaborationPage: React.FC<CollaborationPageProps> = ({
         </Dialog>
       </div>
     </div>
-  );
-};
+  )
+}

@@ -48,11 +48,12 @@ export interface CollaborationState {
   participants: User[]
   messages: ChatMessage[]
   isInCall: boolean
+  rooms: Room[]
 }
 
 export function useCollaborationSocket(serverUrl: string = 'http://localhost:8006') {
   // Collaboration features temporarily disabled
-  const COLLABORATION_ENABLED = false;
+  const COLLABORATION_ENABLED = false
   const socketRef = useRef<Socket | null>(null)
   const [state, setState] = useState<CollaborationState>({
     isConnected: false,
@@ -60,7 +61,8 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
     currentUser: null,
     participants: [],
     messages: [],
-    isInCall: false
+    isInCall: false,
+    rooms: [],
   })
 
   // WebRTC 연결 관리
@@ -73,223 +75,235 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-    ]
+    ],
   }
 
   // Socket 연결 초기화
-  const connect = useCallback((user: Omit<User, 'socket_id' | 'joined_at' | 'role'>) => {
-    if (!COLLABORATION_ENABLED) {
-      console.log('Collaboration features are disabled')
-      return
-    }
-
-    if (socketRef.current?.connected) {
-      return
-    }
-
-    const socket = io(serverUrl, {
-      transports: ['websocket', 'polling'],
-      timeout: 20000,
-      forceNew: true
-    })
-
-    socketRef.current = socket
-
-    socket.on('connect', () => {
-      console.log('Socket connected:', socket.id)
-      setState(prev => ({ ...prev, isConnected: true }))
-
-      // 사용자 등록
-      socket.emit('join_user', {
-        user_id: user.id,
-        name: user.name,
-        email: user.email
-      })
-
-      toast.success('서버에 연결되었습니다')
-    })
-
-    socket.on('disconnect', () => {
-      console.log('Socket disconnected')
-      setState(prev => ({
-        ...prev,
-        isConnected: false,
-        currentRoom: null,
-        participants: [],
-        isInCall: false
-      }))
-      toast.warning('서버 연결이 끊어졌습니다')
-    })
-
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error)
-      toast.error('서버 연결에 실패했습니다')
-    })
-
-    // 사용자 등록 완료
-    socket.on('user_registered', () => {
-      console.log('User registered successfully')
-      setState(prev => ({
-        ...prev,
-        currentUser: {
-          ...user,
-          socket_id: socket.id!,
-          joined_at: new Date().toISOString(),
-          role: 'participant',
-          room_id: undefined,
-          is_video_enabled: true,
-          is_audio_enabled: true
-        }
-      }))
-    })
-
-    // 방 관련 이벤트
-    socket.on('room_created', (data) => {
-      console.log('Room created:', data.room)
-      setState(prev => ({
-        ...prev,
-        currentRoom: data.room,
-        participants: data.room.participants,
-        isInCall: false
-      }))
-      toast.success(`"${data.room.name}" 방이 생성되었습니다`)
-    })
-
-    socket.on('room_joined', (data) => {
-      console.log('Room joined:', data.room)
-      setState(prev => ({
-        ...prev,
-        currentRoom: data.room,
-        participants: data.room.participants,
-        isInCall: false
-      }))
-      toast.success(`"${data.room.name}" 방에 참여했습니다`)
-    })
-
-    socket.on('room_left', () => {
-      console.log('Left room')
-      setState(prev => ({
-        ...prev,
-        currentRoom: null,
-        participants: [],
-        messages: [],
-        isInCall: false
-      }))
-      // 모든 WebRTC 연결 정리
-      cleanup()
-      toast.success('방에서 나왔습니다')
-    })
-
-    socket.on('participant_joined', (data) => {
-      console.log('Participant joined:', data.user)
-      toast.success(`${data.user.name}님이 참여했습니다`)
-    })
-
-    socket.on('participant_left', (data) => {
-      console.log('Participant left:', data.user_name)
-
-      // WebRTC 연결 정리
-      if (peerConnections.current.has(data.user_id)) {
-        peerConnections.current.get(data.user_id)?.close()
-        peerConnections.current.delete(data.user_id)
+  const connect = useCallback(
+    (user: Omit<User, 'socket_id' | 'joined_at' | 'role'>) => {
+      if (!COLLABORATION_ENABLED) {
+        console.log('Collaboration features are disabled')
+        return
       }
 
-      remoteStreamsRef.current.delete(data.user_id)
+      if (socketRef.current?.connected) {
+        return
+      }
 
-      toast.info(`${data.user_name}님이 나가셨습니다`)
-    })
+      const socket = io(serverUrl, {
+        transports: ['websocket', 'polling'],
+        timeout: 20000,
+        forceNew: true,
+      })
 
-    socket.on('participants_updated', (data) => {
-      console.log('Participants updated:', data.participants)
-      setState(prev => ({ ...prev, participants: data.participants }))
-    })
+      socketRef.current = socket
 
-    // 채팅 관련 이벤트
-    socket.on('new_message', (message: ChatMessage) => {
-      console.log('New message:', message)
-      setState(prev => ({
-        ...prev,
-        messages: [...prev.messages, message]
-      }))
-    })
+      socket.on('connect', () => {
+        console.log('Socket connected:', socket.id)
+        setState(prev => ({ ...prev, isConnected: true }))
 
-    socket.on('chat_history', (data) => {
-      console.log('Chat history loaded:', data.messages.length)
-      setState(prev => ({ ...prev, messages: data.messages }))
-    })
+        // 사용자 등록
+        socket.emit('join_user', {
+          user_id: user.id,
+          name: user.name,
+          email: user.email,
+        })
 
-    // WebRTC 시그널링 이벤트
-    socket.on('webrtc_offer', async (data) => {
-      console.log('Received WebRTC offer from:', data.from_user_id)
-      await handleWebRTCOffer(data.from_user_id, data.offer)
-    })
+        // 회의실 목록 요청
+        socket.emit('get_rooms')
 
-    socket.on('webrtc_answer', async (data) => {
-      console.log('Received WebRTC answer from:', data.from_user_id)
-      await handleWebRTCAnswer(data.from_user_id, data.answer)
-    })
+        toast.success('서버에 연결되었습니다')
+      })
+      // 회의실 목록 수신
+      socket.on('rooms_list', data => {
+        console.log('Rooms list received:', data.rooms)
+        setState(prev => ({ ...prev, rooms: data.rooms }))
+      })
 
-    socket.on('webrtc_ice_candidate', async (data) => {
-      console.log('Received ICE candidate from:', data.from_user_id)
-      await handleICECandidate(data.from_user_id, data.candidate)
-    })
+      socket.on('disconnect', () => {
+        console.log('Socket disconnected')
+        setState(prev => ({
+          ...prev,
+          isConnected: false,
+          currentRoom: null,
+          participants: [],
+          isInCall: false,
+        }))
+        toast.warning('서버 연결이 끊어졌습니다')
+      })
 
-    // 미디어 제어 이벤트
-    socket.on('participant_video_toggled', (data) => {
-      setState(prev => ({
-        ...prev,
-        participants: prev.participants.map(p =>
-          p.id === data.user_id ? { ...p, is_video_enabled: data.enabled } : p
-        )
-      }))
-    })
+      socket.on('connect_error', error => {
+        console.error('Socket connection error:', error)
+        toast.error('서버 연결에 실패했습니다')
+      })
 
-    socket.on('participant_audio_toggled', (data) => {
-      setState(prev => ({
-        ...prev,
-        participants: prev.participants.map(p =>
-          p.id === data.user_id ? { ...p, is_audio_enabled: data.enabled } : p
-        )
-      }))
-    })
+      // 사용자 등록 완료
+      socket.on('user_registered', () => {
+        console.log('User registered successfully')
+        setState(prev => ({
+          ...prev,
+          currentUser: {
+            ...user,
+            socket_id: socket.id!,
+            joined_at: new Date().toISOString(),
+            role: 'participant',
+            room_id: undefined,
+            is_video_enabled: true,
+            is_audio_enabled: true,
+          },
+        }))
+      })
 
-    socket.on('screen_share_started', (data) => {
-      toast.info(`${data.user_name}님이 화면 공유를 시작했습니다`)
-    })
+      // 방 관련 이벤트
+      socket.on('room_created', data => {
+        console.log('Room created:', data.room)
+        setState(prev => ({
+          ...prev,
+          currentRoom: data.room,
+          participants: data.room.participants,
+          isInCall: false,
+        }))
+        toast.success(`"${data.room.name}" 방이 생성되었습니다`)
+      })
 
-    socket.on('screen_share_stopped', (data) => {
-      toast.info(`${data.user_name}님이 화면 공유를 중지했습니다`)
-    })
+      socket.on('room_joined', data => {
+        console.log('Room joined:', data.room)
+        setState(prev => ({
+          ...prev,
+          currentRoom: data.room,
+          participants: data.room.participants,
+          isInCall: false,
+        }))
+        toast.success(`"${data.room.name}" 방에 참여했습니다`)
+      })
 
-    socket.on('error', (error) => {
-      console.error('Socket error:', error)
-      toast.error(error.message || '오류가 발생했습니다')
-    })
+      socket.on('room_left', () => {
+        console.log('Left room')
+        setState(prev => ({
+          ...prev,
+          currentRoom: null,
+          participants: [],
+          messages: [],
+          isInCall: false,
+        }))
+        // 모든 WebRTC 연결 정리
+        cleanup()
+        toast.success('방에서 나왔습니다')
+      })
 
-  }, [serverUrl])
+      socket.on('participant_joined', data => {
+        console.log('Participant joined:', data.user)
+        toast.success(`${data.user.name}님이 참여했습니다`)
+      })
+
+      socket.on('participant_left', data => {
+        console.log('Participant left:', data.user_name)
+
+        // WebRTC 연결 정리
+        if (peerConnections.current.has(data.user_id)) {
+          peerConnections.current.get(data.user_id)?.close()
+          peerConnections.current.delete(data.user_id)
+        }
+
+        remoteStreamsRef.current.delete(data.user_id)
+
+        toast.info(`${data.user_name}님이 나가셨습니다`)
+      })
+
+      socket.on('participants_updated', data => {
+        console.log('Participants updated:', data.participants)
+        setState(prev => ({ ...prev, participants: data.participants }))
+      })
+
+      // 채팅 관련 이벤트
+      socket.on('new_message', (message: ChatMessage) => {
+        console.log('New message:', message)
+        setState(prev => ({
+          ...prev,
+          messages: [...prev.messages, message],
+        }))
+      })
+
+      socket.on('chat_history', data => {
+        console.log('Chat history loaded:', data.messages.length)
+        setState(prev => ({ ...prev, messages: data.messages }))
+      })
+
+      // WebRTC 시그널링 이벤트
+      socket.on('webrtc_offer', async data => {
+        console.log('Received WebRTC offer from:', data.from_user_id)
+        await handleWebRTCOffer(data.from_user_id, data.offer)
+      })
+
+      socket.on('webrtc_answer', async data => {
+        console.log('Received WebRTC answer from:', data.from_user_id)
+        await handleWebRTCAnswer(data.from_user_id, data.answer)
+      })
+
+      socket.on('webrtc_ice_candidate', async data => {
+        console.log('Received ICE candidate from:', data.from_user_id)
+        await handleICECandidate(data.from_user_id, data.candidate)
+      })
+
+      // 미디어 제어 이벤트
+      socket.on('participant_video_toggled', data => {
+        setState(prev => ({
+          ...prev,
+          participants: prev.participants.map(p =>
+            p.id === data.user_id ? { ...p, is_video_enabled: data.enabled } : p
+          ),
+        }))
+      })
+
+      socket.on('participant_audio_toggled', data => {
+        setState(prev => ({
+          ...prev,
+          participants: prev.participants.map(p =>
+            p.id === data.user_id ? { ...p, is_audio_enabled: data.enabled } : p
+          ),
+        }))
+      })
+
+      socket.on('screen_share_started', data => {
+        toast.info(`${data.user_name}님이 화면 공유를 시작했습니다`)
+      })
+
+      socket.on('screen_share_stopped', data => {
+        toast.info(`${data.user_name}님이 화면 공유를 중지했습니다`)
+      })
+
+      socket.on('error', error => {
+        console.error('Socket error:', error)
+        toast.error(error.message || '오류가 발생했습니다')
+      })
+    },
+    [serverUrl]
+  )
 
   // WebRTC 관련 함수들
   const createPeerConnection = useCallback((userId: string): RTCPeerConnection => {
     const pc = new RTCPeerConnection(rtcConfiguration)
 
-    pc.onicecandidate = (event) => {
+    pc.onicecandidate = event => {
       if (event.candidate && socketRef.current) {
         socketRef.current.emit('webrtc_ice_candidate', {
           target_user_id: userId,
-          candidate: event.candidate
+          candidate: event.candidate,
         })
       }
     }
 
-    pc.ontrack = (event) => {
+    pc.ontrack = event => {
       console.log('Received remote stream from:', userId)
       const [remoteStream] = event.streams
       remoteStreamsRef.current.set(userId, remoteStream)
 
       // 원격 스트림 이벤트 발생
-      window.dispatchEvent(new CustomEvent('remoteStreamAdded', {
-        detail: { userId, stream: remoteStream }
-      }))
+      window.dispatchEvent(
+        new CustomEvent('remoteStreamAdded', {
+          detail: { userId, stream: remoteStream },
+        })
+      )
     }
 
     pc.onconnectionstatechange = () => {
@@ -307,46 +321,55 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
     return pc
   }, [])
 
-  const handleWebRTCOffer = useCallback(async (fromUserId: string, offer: RTCSessionDescriptionInit) => {
-    try {
-      const pc = createPeerConnection(fromUserId)
-      await pc.setRemoteDescription(new RTCSessionDescription(offer))
+  const handleWebRTCOffer = useCallback(
+    async (fromUserId: string, offer: RTCSessionDescriptionInit) => {
+      try {
+        const pc = createPeerConnection(fromUserId)
+        await pc.setRemoteDescription(new RTCSessionDescription(offer))
 
-      const answer = await pc.createAnswer()
-      await pc.setLocalDescription(answer)
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
 
-      if (socketRef.current) {
-        socketRef.current.emit('webrtc_answer', {
-          target_user_id: fromUserId,
-          answer: answer
-        })
+        if (socketRef.current) {
+          socketRef.current.emit('webrtc_answer', {
+            target_user_id: fromUserId,
+            answer: answer,
+          })
+        }
+      } catch (error) {
+        console.error('Error handling WebRTC offer:', error)
       }
-    } catch (error) {
-      console.error('Error handling WebRTC offer:', error)
-    }
-  }, [createPeerConnection])
+    },
+    [createPeerConnection]
+  )
 
-  const handleWebRTCAnswer = useCallback(async (fromUserId: string, answer: RTCSessionDescriptionInit) => {
-    try {
-      const pc = peerConnections.current.get(fromUserId)
-      if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer))
+  const handleWebRTCAnswer = useCallback(
+    async (fromUserId: string, answer: RTCSessionDescriptionInit) => {
+      try {
+        const pc = peerConnections.current.get(fromUserId)
+        if (pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer))
+        }
+      } catch (error) {
+        console.error('Error handling WebRTC answer:', error)
       }
-    } catch (error) {
-      console.error('Error handling WebRTC answer:', error)
-    }
-  }, [])
+    },
+    []
+  )
 
-  const handleICECandidate = useCallback(async (fromUserId: string, candidate: RTCIceCandidateInit) => {
-    try {
-      const pc = peerConnections.current.get(fromUserId)
-      if (pc) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate))
+  const handleICECandidate = useCallback(
+    async (fromUserId: string, candidate: RTCIceCandidateInit) => {
+      try {
+        const pc = peerConnections.current.get(fromUserId)
+        if (pc) {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate))
+        }
+      } catch (error) {
+        console.error('Error handling ICE candidate:', error)
       }
-    } catch (error) {
-      console.error('Error handling ICE candidate:', error)
-    }
-  }, [])
+    },
+    []
+  )
 
   // 로컬 미디어 스트림 초기화
   const initializeMedia = useCallback(async () => {
@@ -355,13 +378,13 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: 'user'
+          facingMode: 'user',
         },
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
-        }
+          autoGainControl: true,
+        },
       })
 
       localStreamRef.current = stream
@@ -403,7 +426,7 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
           if (socketRef.current) {
             socketRef.current.emit('webrtc_offer', {
               target_user_id: participant.id,
-              offer: offer
+              offer: offer,
             })
           }
         }
@@ -415,7 +438,13 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
       console.error('Failed to start video call:', error)
       toast.error('화상 통화 시작에 실패했습니다')
     }
-  }, [state.currentRoom, state.currentUser, state.participants, initializeMedia, createPeerConnection])
+  }, [
+    state.currentRoom,
+    state.currentUser,
+    state.participants,
+    initializeMedia,
+    createPeerConnection,
+  ])
 
   // 정리 함수
   const cleanup = useCallback(() => {
@@ -433,30 +462,33 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
   }, [])
 
   // API 함수들
-  const createRoom = useCallback((roomData: {
-    name: string
-    description?: string
-    max_participants?: number
-    settings?: Partial<Room['settings']>
-  }) => {
-    if (!socketRef.current?.connected) {
-      toast.error('서버에 연결되지 않았습니다')
-      return
-    }
-
-    socketRef.current.emit('create_room', {
-      name: roomData.name,
-      description: roomData.description || '',
-      max_participants: roomData.max_participants || 10,
-      settings: {
-        allow_screen_share: true,
-        allow_chat: true,
-        require_approval: false,
-        is_locked: false,
-        ...roomData.settings
+  const createRoom = useCallback(
+    (roomData: {
+      name: string
+      description?: string
+      max_participants?: number
+      settings?: Partial<Room['settings']>
+    }) => {
+      if (!socketRef.current?.connected) {
+        toast.error('서버에 연결되지 않았습니다')
+        return
       }
-    })
-  }, [])
+
+      socketRef.current.emit('create_room', {
+        name: roomData.name,
+        description: roomData.description || '',
+        max_participants: roomData.max_participants || 10,
+        settings: {
+          allow_screen_share: true,
+          allow_chat: true,
+          require_approval: false,
+          is_locked: false,
+          ...roomData.settings,
+        },
+      })
+    },
+    []
+  )
 
   const joinRoom = useCallback((roomId: string) => {
     if (!socketRef.current?.connected) {
@@ -474,14 +506,17 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
     cleanup()
   }, [cleanup])
 
-  const sendMessage = useCallback((message: string) => {
-    if (!socketRef.current?.connected || !state.currentRoom) {
-      toast.error('방에 참여하지 않았습니다')
-      return
-    }
+  const sendMessage = useCallback(
+    (message: string) => {
+      if (!socketRef.current?.connected || !state.currentRoom) {
+        toast.error('방에 참여하지 않았습니다')
+        return
+      }
 
-    socketRef.current.emit('send_message', { message })
-  }, [state.currentRoom])
+      socketRef.current.emit('send_message', { message })
+    },
+    [state.currentRoom]
+  )
 
   const toggleVideo = useCallback((enabled: boolean) => {
     if (!socketRef.current?.connected) return
@@ -524,7 +559,8 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
       currentUser: null,
       participants: [],
       messages: [],
-      isInCall: false
+      isInCall: false,
+      rooms: [],
     })
   }, [cleanup])
 
@@ -562,6 +598,6 @@ export function useCollaborationSocket(serverUrl: string = 'http://localhost:800
     toggleAudio,
 
     // 유틸리티
-    cleanup
+    cleanup,
   }
 }

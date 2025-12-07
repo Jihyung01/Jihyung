@@ -1,7 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from "react-error-boundary";
 
-
 import App from './App.tsx'
 import { ErrorFallback } from './ErrorFallback.tsx'
 
@@ -46,14 +45,23 @@ if ('serviceWorker' in navigator) {
             });
           }
         });
+
+        // Handle controller change
+        registration.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
       })
       .catch((error) => {
-        console.log('❌ Service Worker registration failed:', error);
+        console.log('Service Worker registration failed:', error);
       });
   });
 
-  // Listen for controlling service worker changes
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
+  // Handle messages from Service Worker
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'CLAIM_CLIENTS' });
+  }
+
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    console.log('Message from Service Worker:', event.data);
   });
 }
