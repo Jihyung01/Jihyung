@@ -89,7 +89,7 @@
       "destination": "/assets/$1"
     },
     {
-      "source": "^(?!/assets|/manifest\\.json|/sw\\.js|/favicon|/icon|/offline)\\/.*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
