@@ -254,6 +254,9 @@ JWT_SECRET = os.getenv("JWT_SECRET", "your-super-secret-key-2024")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
+# Default user ID for public endpoints
+DEFAULT_USER_ID = "12345678-1234-1234-1234-123456789012"
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_second_brain")
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").lower() == "true"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -2651,7 +2654,6 @@ def _parse_datetime(dt_value):
 
 @app.get("/api/tasks", response_model=List[TaskResponse])
 async def get_tasks(
-    current_user: dict = Depends(get_current_user),
     status: Optional[str] = None,
     priority: Optional[str] = None,
     category: Optional[str] = None,
@@ -2662,6 +2664,9 @@ async def get_tasks(
     offset: int = 0
 ):
     """Get tasks with advanced filtering"""
+    # Use default user ID for public access
+    user_id = DEFAULT_USER_ID
+    
     # Always try database first for data persistence
     if db_pool is not None:
         async with db_pool.acquire() as connection:
@@ -2674,7 +2679,7 @@ async def get_tasks(
                            created_at, updated_at, user_id
                     FROM tasks WHERE user_id = $1
                 """]
-                params = [uuid.UUID(current_user['id'])]
+                params = [uuid.UUID(user_id)]
                 param_count = 1
                 
                 if status:
@@ -2881,11 +2886,13 @@ async def get_calendar_events_alt(
 @app.get("/api/calendar")
 async def get_calendar_events(
     from_date: str = Query(alias="from"),
-    to_date: str = Query(alias="to"),
-    current_user: dict = Depends(get_current_user)
+    to_date: str = Query(alias="to")
 ):
     """Get calendar events for a specific date range"""
     try:
+        # Use default user ID for public access
+        user_id = DEFAULT_USER_ID
+        
         # Handle undefined or invalid date parameters
         if from_date == 'undefined' or from_date is None:
             from_date = datetime.now(timezone.utc).isoformat()
@@ -2903,7 +2910,7 @@ async def get_calendar_events(
         except ValueError:
             end_date = datetime.now(timezone.utc) + timedelta(days=30)
         
-        logger.info(f"📅 Getting calendar events from {start_date} to {end_date} for user {current_user['id']}")
+        logger.info(f"📅 Getting calendar events from {start_date} to {end_date} for user {user_id}")
         
         if db_pool is not None:
             async with db_pool.acquire() as conn:
@@ -2917,7 +2924,7 @@ async def get_calendar_events(
                 AND start_time <= $3::timestamptz
                 ORDER BY start_time
                 """
-                events_result = await conn.fetch(events_query, uuid.UUID(current_user['id']), start_date, end_date)
+                events_result = await conn.fetch(events_query, uuid.UUID(user_id), start_date, end_date)
                 
                 # Get tasks with due dates as calendar events
                 # Convert start_date and end_date to date objects for comparison with due_date
@@ -2930,7 +2937,7 @@ async def get_calendar_events(
                 WHERE user_id = $1 AND due_date >= $2 AND due_date <= $3 AND status != 'completed'
                 ORDER BY due_date
                 """
-                tasks_result = await conn.fetch(tasks_query, uuid.UUID(current_user['id']), start_date_only, end_date_only)
+                tasks_result = await conn.fetch(tasks_query, uuid.UUID(user_id), start_date_only, end_date_only)
                 
                 # Convert calendar events
                 events = []
@@ -4775,9 +4782,12 @@ async def delete_task(
 
 # Note endpoints
 @app.get("/api/notes")
-async def get_notes(current_user: dict = Depends(get_current_user)):
+async def get_notes():
     """Get all notes for the current user"""
     try:
+        # Use default user ID for public access
+        user_id = DEFAULT_USER_ID
+        
         # Always try database first for data persistence
         if db_pool is not None:
             async with db_pool.acquire() as conn:
@@ -4788,7 +4798,7 @@ async def get_notes(current_user: dict = Depends(get_current_user)):
                 WHERE user_id = $1 
                 ORDER BY created_at DESC
                 """
-                notes = await conn.fetch(query, uuid.UUID(current_user['id']))
+                notes = await conn.fetch(query, uuid.UUID(user_id))
                 
                 result = []
                 for note in notes:
@@ -5043,12 +5053,15 @@ async def update_note(
 
 # Calendar endpoints  
 @app.get("/api/calendar")
-async def get_calendar_events(current_user: dict = Depends(get_current_user)):
+async def get_calendar_events_v2():
     """Get all calendar events for the current user"""
     try:
+        # Use default user ID for public access
+        user_id = DEFAULT_USER_ID
+        
         if USE_MEMORY_STORAGE:
-            user_events = memory_storage['events'].get(str(current_user['id']), [])
-            logger.info(f"📅 Retrieved {len(user_events)} events from memory storage for user {current_user['id']}")
+            user_events = memory_storage['events'].get(user_id, [])
+            logger.info(f"📅 Retrieved {len(user_events)} events from memory storage for user {user_id}")
             return user_events
         else:
             query = """
@@ -5056,7 +5069,7 @@ async def get_calendar_events(current_user: dict = Depends(get_current_user)):
                 WHERE user_id = $1 
                 ORDER BY start_time ASC
             """
-            events = await database.fetch_all(query, current_user['id'])
+            events = await database.fetch_all(query, user_id)
             
             result = []
             for event in events:
@@ -5074,7 +5087,7 @@ async def get_calendar_events(current_user: dict = Depends(get_current_user)):
                     event_dict['updated_at'] = event_dict['updated_at'].isoformat()
                 result.append(event_dict)
             
-            logger.info(f"📅 Retrieved {len(result)} events from database for user {current_user['id']}")
+            logger.info(f"📅 Retrieved {len(result)} events from database for user {user_id}")
             return result
             
     except Exception as e:

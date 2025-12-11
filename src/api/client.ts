@@ -78,12 +78,15 @@ async function request<T>(
     })
 
     if (!response.ok) {
-      // Handle 401 - try to re-initialize token
-      if (response.status === 401) {
+      // Handle 401 - try to re-initialize token ONCE
+      if (response.status === 401 && !options.headers?.['X-Retry-Count']) {
         console.warn('401 Unauthorized - attempting to reinitialize token')
         await initializeDemoToken()
-        // Retry with new token
-        return request<T>(path, options, controller)
+        // Retry with new token, add retry flag to prevent infinite loop
+        return request<T>(path, {
+          ...options,
+          headers: { ...options.headers, 'X-Retry-Count': '1' }
+        }, controller)
       }
 
       const errorText = await response.text()
