@@ -2810,7 +2810,7 @@ async def get_tasks(
         logger.warning(f"Error loading tasks from memory: {e}")
         
     # 페이지네이션
-    logger.info(f"📚 Retrieved {len(user_tasks[offset:offset + limit])} tasks from memory storage for user {current_user['id']}")
+    logger.info(f"📚 Retrieved {len(user_tasks[offset:offset + limit])} tasks from memory storage for user {user_id}")
     return user_tasks[offset:offset + limit]
 
 # Calendar Events API  
