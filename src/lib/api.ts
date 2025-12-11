@@ -217,19 +217,62 @@ export const enhancedAPI = {
         return [];
       }
       
-      return events.map(event => ({
-        id: String(event.id) || String(Date.now()),
-        title: event.title || '',
-        description: event.description || '',
-        start_at: event.start || event.start_at || event.due_at || '',
-        end_at: event.end || event.end_at || event.due_at || '',
-        location: event.location || '',
-        attendees: Array.isArray(event.attendees) ? event.attendees : [],
-        created_at: event.createdAt || event.created_at || new Date().toISOString(),
-        updated_at: event.updatedAt || event.updated_at || new Date().toISOString(),
-        user_id: String(event.user_id) || '1',
-        task_id: event.task_id ? String(event.task_id) : undefined
-      }));
+      return events.map(event => {
+        try {
+          // Helper function to safely convert dates
+          const safeDate = (value: any): string => {
+            try {
+              if (!value) return new Date().toISOString();
+              if (typeof value === 'string') {
+                const parsed = new Date(value);
+                if (!isNaN(parsed.getTime())) {
+                  return parsed.toISOString();
+                }
+                return new Date().toISOString();
+              }
+              if (typeof value === 'number') {
+                const parsed = new Date(value);
+                if (!isNaN(parsed.getTime())) {
+                  return parsed.toISOString();
+                }
+              }
+              return new Date().toISOString();
+            } catch {
+              return new Date().toISOString();
+            }
+          };
+
+          return {
+            id: String(event.id) || String(Date.now()),
+            title: event.title || '',
+            description: event.description || '',
+            start_at: safeDate(event.start || event.start_at || event.due_at),
+            end_at: safeDate(event.end || event.end_at || event.due_at),
+            location: event.location || '',
+            attendees: Array.isArray(event.attendees) ? event.attendees : [],
+            created_at: safeDate(event.createdAt || event.created_at),
+            updated_at: safeDate(event.updatedAt || event.updated_at),
+            user_id: String(event.user_id) || '1',
+            task_id: event.task_id ? String(event.task_id) : undefined
+          };
+        } catch (eventError) {
+          console.warn('Error processing individual calendar event:', event, eventError);
+          // Return a safe fallback event
+          return {
+            id: String(event.id) || String(Date.now()),
+            title: 'Invalid Event',
+            description: '',
+            start_at: new Date().toISOString(),
+            end_at: new Date().toISOString(),
+            location: '',
+            attendees: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            user_id: '1',
+            task_id: undefined
+          };
+        }
+      });
     } catch (error) {
       console.error('Failed to get calendar events:', error);
       return [];
