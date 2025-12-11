@@ -2749,15 +2749,14 @@ async def get_tasks(
                     }
                     result.append(task_dict)
                 
-                logger.info(f"✅ Retrieved {len(result)} tasks from database for user {current_user['id']}")
+                logger.info(f"✅ Retrieved {len(result)} tasks from database for user {user_id}")
                 return result
                 
             except Exception as e:
                 logger.error(f"❌ Database query error: {e}")
                 # Fall through to memory storage
 
-    # Fallback to memory storage
-    user_id = current_user['id']
+    # Fallback to memory storage - user_id already set above
     user_tasks = []
     
     # memory_storage에서 사용자의 태스크들 가져오기
@@ -4817,12 +4816,12 @@ async def get_notes():
                     }
                     result.append(note_dict)
                 
-                logger.info(f"✅ Retrieved {len(result)} notes from cloud for user {current_user['id']}")
+                logger.info(f"✅ Retrieved {len(result)} notes from cloud for user {user_id}")
                 return result
         
         # Fallback to memory storage if database is not available
-        user_notes = memory_storage.get('notes', {}).get(str(current_user['id']), [])
-        logger.info(f"📚 Retrieved {len(user_notes)} notes from memory storage for user {current_user['id']}")
+        user_notes = memory_storage.get('notes', {}).get(str(user_id), [])
+        logger.info(f"📚 Retrieved {len(user_notes)} notes from memory storage for user {user_id}")
         return user_notes
             
     except Exception as e:
