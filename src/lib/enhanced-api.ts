@@ -284,19 +284,49 @@ export const enhancedAPI = {
       // Use the correct API endpoint that the backend provides
       const events = await api.getCalendarEvents(fromDate, toDate) || [];
       // Map API response to frontend interface, handling both task and event formats
-      return events.map(event => ({
-        id: parseInt(event.id) || Date.now(),
-        title: event.title || '',
-        description: event.description || '',
-        start_at: event.start || event.start_at || event.due_at || '',
-        end_at: event.end || event.end_at || event.due_at || '',
-        location: event.location || '',
-        attendees: event.attendees || [],
-        created_at: event.createdAt || event.created_at || new Date().toISOString(),
-        updated_at: event.updatedAt || event.updated_at || new Date().toISOString(),
-        user_id: event.user_id || 1,
-        task_id: event.task_id || undefined
-      }));
+      return events.map(event => {
+        try {
+          // Safely parse dates
+          const safeDate = (dateStr: any) => {
+            try {
+              if (!dateStr) return new Date().toISOString();
+              const d = new Date(dateStr);
+              return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+            } catch (e) {
+              return new Date().toISOString();
+            }
+          };
+
+          return {
+            id: parseInt(event.id) || Date.now(),
+            title: event.title || '',
+            description: event.description || '',
+            start_at: safeDate(event.start || event.start_at || event.due_at),
+            end_at: safeDate(event.end || event.end_at || event.due_at),
+            location: event.location || '',
+            attendees: event.attendees || [],
+            created_at: safeDate(event.createdAt || event.created_at),
+            updated_at: safeDate(event.updatedAt || event.updated_at),
+            user_id: event.user_id || 1,
+            task_id: event.task_id || undefined
+          };
+        } catch (mapError) {
+          console.error('Error mapping calendar event:', event, mapError);
+          // Return safe default event
+          return {
+            id: Date.now(),
+            title: 'Unknown Event',
+            description: '',
+            start_at: new Date().toISOString(),
+            end_at: new Date().toISOString(),
+            location: '',
+            attendees: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            user_id: 1
+          };
+        }
+      });
     } catch (error) {
       console.error('Failed to get calendar events:', error);
       return [];

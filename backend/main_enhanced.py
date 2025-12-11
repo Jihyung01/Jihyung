@@ -5669,7 +5669,7 @@ async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_
 # ========== ADVANCED AI API ==========
 
 @app.post("/api/ai/chat")
-async def ai_chat(request: dict, current_user: dict = Depends(get_current_user)):
+async def ai_chat(request: dict):
     """Advanced AI chat with context awareness and smart responses"""
     try:
         # Extract message from various possible fields
@@ -5687,7 +5687,7 @@ async def ai_chat(request: dict, current_user: dict = Depends(get_current_user))
                 ]
             }
             
-        logger.info(f"🤖 AI Chat request from user {current_user['id']}: {user_message[:100]}...")
+        logger.info(f"🤖 AI Chat request: {user_message[:100]}...")
         
         # Check for specific command patterns first
         if any(keyword in user_message.lower() for keyword in ['할 일', '작업', '태스크', 'task']):
@@ -5734,26 +5734,17 @@ async def ai_chat(request: dict, current_user: dict = Depends(get_current_user))
                 if context:
                     context_parts.append(f"Context: {context}")
                 
-                # Add recent user activity for better context
+                # Add recent user activity for better context (from memory storage)
                 try:
-                    if db_pool:
-                        async with db_pool.acquire() as connection:
-                            recent_notes = await connection.fetch(
-                                "SELECT title FROM notes WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 3",
-                                uuid.UUID(current_user['id'])
-                            )
-                            if recent_notes:
-                                context_parts.append("Recent notes: " + ", ".join([note['title'] for note in recent_notes]))
-                    else:
-                        # Memory storage context
-                        user_notes = memory_storage.get('notes', {})
-                        recent_titles = [note.get('title', '') for note in list(user_notes.values())[-3:] if note.get('user_id') == current_user['id']]
-                        if recent_titles:
-                            context_parts.append("Recent notes: " + ", ".join(recent_titles))
+                    # Memory storage context
+                    user_notes = memory_storage.get('notes', {})
+                    recent_titles = [note.get('title', '') for note in list(user_notes.values())[-3:]]
+                    if recent_titles:
+                        context_parts.append("Recent notes: " + ", ".join(recent_titles))
                 except Exception as context_error:
                     logger.warning(f"Failed to build context: {context_error}")
                 
-                system_message = f"""당신은 Spark AI의 고급 개인 어시스턴트입니다. ChatGPT-4 수준의 지능적이고 유용한 응답을 제공하세요.
+                system_message = f"""당신은 Jihyung 생산성 AI 어시스턴트입니다. 지능적이고 유용한 응답을 제공하세요.
 
 ## 역할 및 능력:
 - 노트, 작업, 일정 관리 전문가

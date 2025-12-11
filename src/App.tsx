@@ -1,19 +1,53 @@
-import React, { useState, useEffect, Suspense, lazy, useRef, useCallback, createContext, useMemo } from 'react'
+import React, {
+  useState,
+  useEffect,
+  Suspense,
+  lazy,
+  useRef,
+  useCallback,
+  createContext,
+  useMemo,
+} from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast, Toaster } from 'sonner'
-import { 
-  Calendar, Target, FileText, Brain, LogOut, Plus,
-  TrendingUp, Rocket, Shield, Network,
-  Command, ChartLine, Folder, Settings as Gear, Moon, GitBranch as Graph
+import {
+  Calendar,
+  Target,
+  FileText,
+  Brain,
+  LogOut,
+  Plus,
+  TrendingUp,
+  Rocket,
+  Shield,
+  Network,
+  Command,
+  ChartLine,
+  Folder,
+  Settings as Gear,
+  Moon,
+  GitBranch as Graph,
 } from 'lucide-react'
 import {
-  MagicWand, SpeakerHigh, Lightning, Planet, Crown, Eye, Atom, Spiral,
-  Fingerprint, Snowflake, FlowerLotus, Butterfly, Waves, CloudRain,
-  Sparkle
+  MagicWand,
+  SpeakerHigh,
+  Lightning,
+  Planet,
+  Crown,
+  Eye,
+  Atom,
+  Spiral,
+  Fingerprint,
+  Snowflake,
+  FlowerLotus,
+  Butterfly,
+  Waves,
+  CloudRain,
+  Sparkle,
 } from '@phosphor-icons/react'
 
 // 기존 실제 컴포넌트들 import
@@ -50,13 +84,13 @@ import {
   CaptureModalProps,
   AutoSchedulerProps,
   TrainingData,
-  VoiceRecognitionResult
-} from './types/unified';
+  VoiceRecognitionResult,
+} from './types/unified'
 
 // 3D 및 홀로그램 컴포넌트
 const HolographicDisplay = () => {
   const meshRef = useRef<THREE.Mesh>(null)
-  
+
   useFrame((state, delta) => {
     if (meshRef.current) {
       meshRef.current.rotation.x += delta * 0.5
@@ -67,12 +101,7 @@ const HolographicDisplay = () => {
   return (
     <mesh ref={meshRef}>
       <torusGeometry args={[1, 0.3, 16, 100]} />
-      <meshStandardMaterial 
-        color="#8b5cf6" 
-        wireframe={true}
-        transparent={true}
-        opacity={0.7}
-      />
+      <meshStandardMaterial color="#8b5cf6" wireframe={true} transparent={true} opacity={0.7} />
     </mesh>
   )
 }
@@ -115,86 +144,105 @@ const useRealDataManager = () => {
   })
 
   // 데이터 저장 함수들
-  const saveNote = useCallback((note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newNote: Note = {
-      ...note,
-      id: Date.now().toString(),
-      createdAt: safeToISOString(new Date()),
-      updatedAt: safeToISOString(new Date()),
-      tags: note.tags || [],
-      collaborators: note.collaborators || []
-    }
-    const updatedNotes = [...notes, newNote]
-    setNotes(updatedNotes)
-    localStorage.setItem('super-app-notes', JSON.stringify(updatedNotes))
-    toast.success('Note saved successfully!')
-    return newNote
-  }, [notes])
+  const saveNote = useCallback(
+    (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const newNote: Note = {
+        ...note,
+        id: Date.now().toString(),
+        createdAt: safeToISOString(new Date()),
+        updatedAt: safeToISOString(new Date()),
+        tags: note.tags || [],
+        collaborators: note.collaborators || [],
+      }
+      const updatedNotes = [...notes, newNote]
+      setNotes(updatedNotes)
+      localStorage.setItem('super-app-notes', JSON.stringify(updatedNotes))
+      toast.success('Note saved successfully!')
+      return newNote
+    },
+    [notes]
+  )
 
-  const saveTask = useCallback((task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newTask: Task = {
-      ...task,
-      id: Date.now().toString(),
-      createdAt: safeToISOString(new Date()),
-      updatedAt: safeToISOString(new Date()),
-      tags: task.tags || [],
-      subtasks: task.subtasks || [],
-      dependencies: task.dependencies || []
-    }
-    const updatedTasks = [...tasks, newTask]
-    setTasks(updatedTasks)
-    localStorage.setItem('super-app-tasks', JSON.stringify(updatedTasks))
-    toast.success('Task created successfully!')
-    return newTask
-  }, [tasks])
+  const saveTask = useCallback(
+    (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const newTask: Task = {
+        ...task,
+        id: Date.now().toString(),
+        createdAt: safeToISOString(new Date()),
+        updatedAt: safeToISOString(new Date()),
+        tags: task.tags || [],
+        subtasks: task.subtasks || [],
+        dependencies: task.dependencies || [],
+      }
+      const updatedTasks = [...tasks, newTask]
+      setTasks(updatedTasks)
+      localStorage.setItem('super-app-tasks', JSON.stringify(updatedTasks))
+      toast.success('Task created successfully!')
+      return newTask
+    },
+    [tasks]
+  )
 
-  const saveEvent = useCallback((event: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newEvent: Event = {
-      ...event,
-      id: Date.now().toString(),
-      createdAt: safeToISOString(new Date()),
-      updatedAt: safeToISOString(new Date()),
-      attendees: event.attendees || [],
-      reminders: event.reminders || []
-    }
-    const updatedEvents = [...events, newEvent]
-    setEvents(updatedEvents)
-    localStorage.setItem('super-app-events', JSON.stringify(updatedEvents))
-    toast.success('Event created successfully!')
-    return newEvent
-  }, [events])
+  const saveEvent = useCallback(
+    (event: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const newEvent: Event = {
+        ...event,
+        id: Date.now().toString(),
+        createdAt: safeToISOString(new Date()),
+        updatedAt: safeToISOString(new Date()),
+        attendees: event.attendees || [],
+        reminders: event.reminders || [],
+      }
+      const updatedEvents = [...events, newEvent]
+      setEvents(updatedEvents)
+      localStorage.setItem('super-app-events', JSON.stringify(updatedEvents))
+      toast.success('Event created successfully!')
+      return newEvent
+    },
+    [events]
+  )
 
-  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
-    const updatedTasks = tasks.map(task => 
-      task.id === taskId 
-        ? { ...task, ...updates, updatedAt: safeToISOString(new Date()) }
-        : task
-    )
-    setTasks(updatedTasks)
-    localStorage.setItem('super-app-tasks', JSON.stringify(updatedTasks))
-    toast.success('Task updated successfully!')
-  }, [tasks])
+  const updateTask = useCallback(
+    (taskId: string, updates: Partial<Task>) => {
+      const updatedTasks = tasks.map(task =>
+        task.id === taskId ? { ...task, ...updates, updatedAt: safeToISOString(new Date()) } : task
+      )
+      setTasks(updatedTasks)
+      localStorage.setItem('super-app-tasks', JSON.stringify(updatedTasks))
+      toast.success('Task updated successfully!')
+    },
+    [tasks]
+  )
 
-  const deleteTask = useCallback((taskId: string) => {
-    const updatedTasks = tasks.filter(task => task.id !== taskId)
-    setTasks(updatedTasks)
-    localStorage.setItem('super-app-tasks', JSON.stringify(updatedTasks))
-    toast.success('Task deleted successfully!')
-  }, [tasks])
+  const deleteTask = useCallback(
+    (taskId: string) => {
+      const updatedTasks = tasks.filter(task => task.id !== taskId)
+      setTasks(updatedTasks)
+      localStorage.setItem('super-app-tasks', JSON.stringify(updatedTasks))
+      toast.success('Task deleted successfully!')
+    },
+    [tasks]
+  )
 
-  const deleteNote = useCallback((noteId: string) => {
-    const updatedNotes = notes.filter(note => note.id !== noteId)
-    setNotes(updatedNotes)
-    localStorage.setItem('super-app-notes', JSON.stringify(updatedNotes))
-    toast.success('Note deleted successfully!')
-  }, [notes])
+  const deleteNote = useCallback(
+    (noteId: string) => {
+      const updatedNotes = notes.filter(note => note.id !== noteId)
+      setNotes(updatedNotes)
+      localStorage.setItem('super-app-notes', JSON.stringify(updatedNotes))
+      toast.success('Note deleted successfully!')
+    },
+    [notes]
+  )
 
-  const deleteEvent = useCallback((eventId: string) => {
-    const updatedEvents = events.filter(event => event.id !== eventId)
-    setEvents(updatedEvents)
-    localStorage.setItem('super-app-events', JSON.stringify(updatedEvents))
-    toast.success('Event deleted successfully!')
-  }, [events])
+  const deleteEvent = useCallback(
+    (eventId: string) => {
+      const updatedEvents = events.filter(event => event.id !== eventId)
+      setEvents(updatedEvents)
+      localStorage.setItem('super-app-events', JSON.stringify(updatedEvents))
+      toast.success('Event deleted successfully!')
+    },
+    [events]
+  )
 
   return {
     notes,
@@ -206,7 +254,7 @@ const useRealDataManager = () => {
     updateTask,
     deleteTask,
     deleteNote,
-    deleteEvent
+    deleteEvent,
   }
 }
 
@@ -215,64 +263,69 @@ const useRealDataManager = () => {
 // =====================
 const useRealAIAssistant = () => {
   const [isLoading, setIsLoading] = useState(false)
-  const [conversation, setConversation] = useState<Array<{id: string, role: 'user' | 'assistant', content: string, timestamp: string}>>([])
+  const [conversation, setConversation] = useState<
+    Array<{ id: string; role: 'user' | 'assistant'; content: string; timestamp: string }>
+  >([])
 
-  const sendMessage = useCallback(async (message: string) => {
-    if (!message.trim()) return
+  const sendMessage = useCallback(
+    async (message: string) => {
+      if (!message.trim()) return
 
-    setIsLoading(true)
-    const userMessage = {
-      id: Date.now().toString(),
-      role: 'user' as const,
-      content: message,
-      timestamp: safeToISOString(new Date())
-    }
-    
-    setConversation(prev => [...prev, userMessage])
-
-    try {
-      // 실제 AI API 호출
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message,
-          conversation: conversation.slice(-10) // 최근 10개 메시지만 컨텍스트로 사용
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      setIsLoading(true)
+      const userMessage = {
+        id: Date.now().toString(),
+        role: 'user' as const,
+        content: message,
+        timestamp: safeToISOString(new Date()),
       }
 
-      const data = await response.json()
-      
-      const assistantMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant' as const,
-        content: data.response || 'Sorry, I encountered an error. Please try again.',
-        timestamp: safeToISOString(new Date())
-      }
+      setConversation(prev => [...prev, userMessage])
 
-      setConversation(prev => [...prev, assistantMessage])
-      toast.success('AI response received!')
-      
-    } catch (error) {
-      console.error('AI API Error:', error)
-      const errorMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant' as const,
-        content: 'I apologize, but I\'m experiencing technical difficulties. Please check your connection and try again.',
-        timestamp: safeToISOString(new Date())
+      try {
+        // 실제 AI API 호출
+        const response = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message,
+            conversation: conversation.slice(-10), // 최근 10개 메시지만 컨텍스트로 사용
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        const assistantMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant' as const,
+          content: data.response || 'Sorry, I encountered an error. Please try again.',
+          timestamp: safeToISOString(new Date()),
+        }
+
+        setConversation(prev => [...prev, assistantMessage])
+        toast.success('AI response received!')
+      } catch (error) {
+        console.error('AI API Error:', error)
+        const errorMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant' as const,
+          content:
+            "I apologize, but I'm experiencing technical difficulties. Please check your connection and try again.",
+          timestamp: safeToISOString(new Date()),
+        }
+        setConversation(prev => [...prev, errorMessage])
+        toast.error('AI service temporarily unavailable')
+      } finally {
+        setIsLoading(false)
       }
-      setConversation(prev => [...prev, errorMessage])
-      toast.error('AI service temporarily unavailable')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [conversation])
+    },
+    [conversation]
+  )
 
   const clearConversation = useCallback(() => {
     setConversation([])
@@ -283,7 +336,7 @@ const useRealAIAssistant = () => {
     conversation,
     isLoading,
     sendMessage,
-    clearConversation
+    clearConversation,
   }
 }
 
@@ -300,7 +353,7 @@ const RealWorkingCalendar: React.FC<{
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [showEventModal, setShowEventModal] = useState(false)
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
-  
+
   // 이벤트 생성 폼 상태
   const [eventForm, setEventForm] = useState({
     title: '',
@@ -309,7 +362,7 @@ const RealWorkingCalendar: React.FC<{
     endDate: '',
     isAllDay: false,
     location: '',
-    tags: [] as string[]
+    tags: [] as string[],
   })
 
   // 날짜 더블클릭 핸들러 - 실제 이벤트 생성
@@ -317,9 +370,10 @@ const RealWorkingCalendar: React.FC<{
     setSelectedDate(date)
     try {
       // Safely convert date to ISO string, fallback if invalid
-      const isoStr = date instanceof Date && !isNaN(date.getTime()) 
-        ? date.toISOString() 
-        : new Date().toISOString()
+      const isoStr =
+        date instanceof Date && !isNaN(date.getTime())
+          ? date.toISOString()
+          : new Date().toISOString()
       const dateStr = isoStr.split('T')[0]
       setEventForm({
         title: '',
@@ -328,7 +382,7 @@ const RealWorkingCalendar: React.FC<{
         endDate: `${dateStr}T10:00`,
         isAllDay: false,
         location: '',
-        tags: []
+        tags: [],
       })
       setEditingEvent(null)
       setShowEventModal(true)
@@ -350,7 +404,7 @@ const RealWorkingCalendar: React.FC<{
       ...eventForm,
       startDate: eventForm.startDate,
       endDate: eventForm.endDate || eventForm.startDate,
-      tags: eventForm.tags
+      tags: eventForm.tags,
     }
 
     if (editingEvent) {
@@ -367,7 +421,7 @@ const RealWorkingCalendar: React.FC<{
       endDate: '',
       isAllDay: false,
       location: '',
-      tags: []
+      tags: [],
     })
   }
 
@@ -381,7 +435,7 @@ const RealWorkingCalendar: React.FC<{
       endDate: event.endDate.slice(0, 16),
       isAllDay: event.isAllDay,
       location: event.location || '',
-      tags: event.tags
+      tags: event.tags,
     })
     setShowEventModal(true)
   }
@@ -417,14 +471,12 @@ const RealWorkingCalendar: React.FC<{
             hover:bg-blue-800/30
           `}
         >
-          <div className="text-sm text-gray-300 mb-1">
-            {current.getDate()}
-          </div>
+          <div className="text-sm text-gray-300 mb-1">{current.getDate()}</div>
           <div className="space-y-1">
             {dateEvents.map(event => (
               <div
                 key={event.id}
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation()
                   handleEditEvent(event)
                 }}
@@ -452,7 +504,9 @@ const RealWorkingCalendar: React.FC<{
         </h2>
         <div className="flex space-x-2">
           <button
-            onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
+            onClick={() =>
+              setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))
+            }
             className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
           >
             ←
@@ -464,7 +518,9 @@ const RealWorkingCalendar: React.FC<{
             Today
           </button>
           <button
-            onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
+            onClick={() =>
+              setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
+            }
             className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
           >
             →
@@ -482,9 +538,7 @@ const RealWorkingCalendar: React.FC<{
       </div>
 
       {/* 달력 그리드 */}
-      <div className="grid grid-cols-7 gap-1">
-        {renderCalendar()}
-      </div>
+      <div className="grid grid-cols-7 gap-1">{renderCalendar()}</div>
 
       {/* 이벤트 생성/편집 모달 */}
       {showEventModal && (
@@ -501,30 +555,30 @@ const RealWorkingCalendar: React.FC<{
             <h3 className="text-xl font-bold text-white mb-4">
               {editingEvent ? 'Edit Event' : 'Create New Event'}
             </h3>
-            
+
             <div className="space-y-4">
               <input
                 type="text"
                 placeholder="Event title"
                 value={eventForm.title}
-                onChange={(e) => setEventForm({...eventForm, title: e.target.value})}
+                onChange={e => setEventForm({ ...eventForm, title: e.target.value })}
                 className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-blue-500"
               />
-              
+
               <textarea
                 placeholder="Description (optional)"
                 value={eventForm.description}
-                onChange={(e) => setEventForm({...eventForm, description: e.target.value})}
+                onChange={e => setEventForm({ ...eventForm, description: e.target.value })}
                 className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-blue-500 h-20"
               />
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm text-gray-300 mb-1">Start</label>
                   <input
                     type="datetime-local"
                     value={eventForm.startDate}
-                    onChange={(e) => setEventForm({...eventForm, startDate: e.target.value})}
+                    onChange={e => setEventForm({ ...eventForm, startDate: e.target.value })}
                     className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500"
                   />
                 </div>
@@ -533,17 +587,17 @@ const RealWorkingCalendar: React.FC<{
                   <input
                     type="datetime-local"
                     value={eventForm.endDate}
-                    onChange={(e) => setEventForm({...eventForm, endDate: e.target.value})}
+                    onChange={e => setEventForm({ ...eventForm, endDate: e.target.value })}
                     className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500"
                   />
                 </div>
               </div>
-              
+
               <input
                 type="text"
                 placeholder="Location (optional)"
                 value={eventForm.location}
-                onChange={(e) => setEventForm({...eventForm, location: e.target.value})}
+                onChange={e => setEventForm({ ...eventForm, location: e.target.value })}
                 className="w-full p-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-blue-500"
               />
 
@@ -551,7 +605,7 @@ const RealWorkingCalendar: React.FC<{
                 <input
                   type="checkbox"
                   checked={eventForm.isAllDay}
-                  onChange={(e) => setEventForm({...eventForm, isAllDay: e.target.checked})}
+                  onChange={e => setEventForm({ ...eventForm, isAllDay: e.target.checked })}
                   className="rounded"
                 />
                 <span>All Day Event</span>
@@ -589,7 +643,11 @@ const RealWorkingCalendar: React.FC<{
     </div>
   )
 }
-const Advanced3DHologram: React.FC<{ data: any; type: string; enabled: boolean }> = ({ data, type, enabled }) => {
+const Advanced3DHologram: React.FC<{ data: any; type: string; enabled: boolean }> = ({
+  data,
+  type,
+  enabled,
+}) => {
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene>(null)
   const rendererRef = useRef<THREE.WebGLRenderer>(null)
@@ -601,25 +659,31 @@ const Advanced3DHologram: React.FC<{ data: any; type: string; enabled: boolean }
 
     // Initialize Three.js scene
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    )
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    
+
     renderer.setSize(400, 300)
     renderer.setClearColor(0x000000, 0)
     mountRef.current.appendChild(renderer.domElement)
 
     // Create holographic objects based on data type
-    const geometry = type === 'consciousness' 
-      ? new THREE.SphereGeometry(1, 32, 32)
-      : type === 'quantum'
-      ? new THREE.BoxGeometry(1, 1, 1)
-      : new THREE.TetrahedronGeometry(1)
+    const geometry =
+      type === 'consciousness'
+        ? new THREE.SphereGeometry(1, 32, 32)
+        : type === 'quantum'
+          ? new THREE.BoxGeometry(1, 1, 1)
+          : new THREE.TetrahedronGeometry(1)
 
-    const material = new THREE.MeshBasicMaterial({ 
+    const material = new THREE.MeshBasicMaterial({
       color: type === 'consciousness' ? 0x9333ea : type === 'quantum' ? 0x06b6d4 : 0xf59e0b,
       wireframe: true,
       transparent: true,
-      opacity: 0.7
+      opacity: 0.7,
     })
 
     const mesh = new THREE.Mesh(geometry, material)
@@ -630,15 +694,15 @@ const Advanced3DHologram: React.FC<{ data: any; type: string; enabled: boolean }
     // Animation loop
     const animate = () => {
       animationRef.current = requestAnimationFrame(animate)
-      
+
       mesh.rotation.x += 0.01
       mesh.rotation.y += 0.01
-      
+
       // Add consciousness-based pulsing
       if (type === 'consciousness') {
         mesh.scale.setScalar(1 + Math.sin(Date.now() * 0.003) * 0.2)
       }
-      
+
       renderer.render(scene, camera)
     }
 
@@ -671,9 +735,7 @@ const Advanced3DHologram: React.FC<{ data: any; type: string; enabled: boolean }
     >
       <div ref={mountRef} className="w-full h-full" />
       <div className="absolute top-2 left-2 bg-black/20 backdrop-blur-sm rounded-lg px-3 py-1">
-        <span className="text-xs font-medium text-white">
-          {type.toUpperCase()} HOLOGRAM
-        </span>
+        <span className="text-xs font-medium text-white">{type.toUpperCase()} HOLOGRAM</span>
       </div>
     </motion.div>
   )
@@ -717,11 +779,13 @@ const RealityHacker: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Reality Power Control */}
             <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 rounded-xl p-6">
-              <h3 className="text-xl font-semibold text-red-300 mb-4">Reality Manipulation Power</h3>
+              <h3 className="text-xl font-semibold text-red-300 mb-4">
+                Reality Manipulation Power
+              </h3>
               <div className="flex items-center space-x-4 mb-4">
                 <div className="flex-1">
                   <div className="h-6 bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-gradient-to-r from-red-500 to-orange-500 transition-all duration-1000"
                       style={{ width: `${realityPower}%` }}
                     />
@@ -780,18 +844,16 @@ const RealityHacker: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
             {/* Reality Matrix Display */}
             <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-xl p-6">
               <h3 className="text-xl font-semibold text-green-300 mb-4">Reality Matrix Status</h3>
-              <Advanced3DHologram 
-                data={{ power: realityPower }}
-                type="reality"
-                enabled={true}
-              />
+              <Advanced3DHologram data={{ power: realityPower }} type="reality" enabled={true} />
             </div>
           </div>
 
           {/* Advanced Controls */}
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-black/40 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-cyan-300 mb-4">Quantum Field Manipulation</h3>
+              <h3 className="text-lg font-semibold text-cyan-300 mb-4">
+                Quantum Field Manipulation
+              </h3>
               <div className="space-y-3">
                 <button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-2 px-4 rounded-lg transition-all">
                   Quantum Tunneling
@@ -827,7 +889,10 @@ const RealityHacker: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 }
 
 // Multiverse Manager - Universe Creation and Management
-const MultiverseManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+const MultiverseManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
+  isOpen,
+  onClose,
+}) => {
   const [selectedUniverse, setSelectedUniverse] = useState('universe-1')
   const [universeCreating, setUniverseCreating] = useState(false)
 
@@ -882,8 +947,8 @@ const MultiverseManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   {universeCreating ? 'Creating...' : 'Create Universe'}
                 </button>
               </div>
-              
-              {universes.map((universe) => (
+
+              {universes.map(universe => (
                 <motion.div
                   key={universe.id}
                   initial={{ opacity: 0, x: -20 }}
@@ -898,8 +963,15 @@ const MultiverseManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xl font-semibold text-white mb-2">{universe.name}</h4>
-                      <p className="text-gray-300">Status: <span className="text-green-400">{universe.status}</span></p>
-                      <p className="text-gray-300">Inhabitants: <span className="text-blue-400">{universe.inhabitants.toLocaleString()}</span></p>
+                      <p className="text-gray-300">
+                        Status: <span className="text-green-400">{universe.status}</span>
+                      </p>
+                      <p className="text-gray-300">
+                        Inhabitants:{' '}
+                        <span className="text-blue-400">
+                          {universe.inhabitants.toLocaleString()}
+                        </span>
+                      </p>
                     </div>
                     <div className="text-right">
                       <Planet className="w-12 h-12 text-indigo-400 mb-2" />
@@ -915,8 +987,10 @@ const MultiverseManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
             {/* Universe Details */}
             <div className="space-y-6">
               <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl p-6">
-                <h3 className="text-xl font-semibold text-purple-300 mb-4">Universe Visualization</h3>
-                <Advanced3DHologram 
+                <h3 className="text-xl font-semibold text-purple-300 mb-4">
+                  Universe Visualization
+                </h3>
+                <Advanced3DHologram
                   data={{ universe: selectedUniverse }}
                   type="multiverse"
                   enabled={true}
@@ -952,7 +1026,10 @@ const SpaceTimeContext = createContext(null)
 const MultiverseContext = createContext(null)
 
 // 궁극의 양자 컴퓨팅 프로세서 - 세상을 뛰어넘는 처리 능력
-const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
+  isOpen,
+  onClose,
+}) => {
   const [quantumState, setQuantumState] = useState({
     qubits: 1024,
     entanglement: 95.7,
@@ -963,24 +1040,54 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
     errorRate: 0.001,
     teleportationSuccess: 99.8,
     superpositionStates: 2048,
-    quantumAdvantage: 'Exponential'
+    quantumAdvantage: 'Exponential',
   })
-  
+
   const [processing, setProcessing] = useState(false)
   const [quantumAlgorithms, setQuantumAlgorithms] = useState([
-    { name: 'Shor\'s Algorithm', complexity: 'Polynomial', status: 'Ready', efficiency: 99.9 },
-    { name: 'Grover\'s Algorithm', complexity: 'Quadratic Speedup', status: 'Ready', efficiency: 99.5 },
-    { name: 'Quantum Neural Network', complexity: 'Exponential', status: 'Training', efficiency: 97.8 },
-    { name: 'Quantum Machine Learning', complexity: 'Super-Polynomial', status: 'Ready', efficiency: 98.2 },
-    { name: 'Quantum Cryptography', complexity: 'Unbreakable', status: 'Active', efficiency: 99.99 },
-    { name: 'Quantum Teleportation', complexity: 'Instantaneous', status: 'Ready', efficiency: 99.8 },
-    { name: 'Quantum Error Correction', complexity: 'Fault-Tolerant', status: 'Active', efficiency: 99.9 },
-    { name: 'Quantum Simulation', complexity: 'Universal', status: 'Ready', efficiency: 98.5 }
+    { name: "Shor's Algorithm", complexity: 'Polynomial', status: 'Ready', efficiency: 99.9 },
+    {
+      name: "Grover's Algorithm",
+      complexity: 'Quadratic Speedup',
+      status: 'Ready',
+      efficiency: 99.5,
+    },
+    {
+      name: 'Quantum Neural Network',
+      complexity: 'Exponential',
+      status: 'Training',
+      efficiency: 97.8,
+    },
+    {
+      name: 'Quantum Machine Learning',
+      complexity: 'Super-Polynomial',
+      status: 'Ready',
+      efficiency: 98.2,
+    },
+    {
+      name: 'Quantum Cryptography',
+      complexity: 'Unbreakable',
+      status: 'Active',
+      efficiency: 99.99,
+    },
+    {
+      name: 'Quantum Teleportation',
+      complexity: 'Instantaneous',
+      status: 'Ready',
+      efficiency: 99.8,
+    },
+    {
+      name: 'Quantum Error Correction',
+      complexity: 'Fault-Tolerant',
+      status: 'Active',
+      efficiency: 99.9,
+    },
+    { name: 'Quantum Simulation', complexity: 'Universal', status: 'Ready', efficiency: 98.5 },
   ])
 
   const processQuantumData = async () => {
     setProcessing(true)
-    
+
     // 시뮬레이션된 양자 처리
     for (let i = 0; i <= 100; i += 10) {
       await new Promise(resolve => setTimeout(resolve, 200))
@@ -988,10 +1095,13 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
         ...prev,
         entanglement: Math.min(99.9, prev.entanglement + Math.random() * 0.1),
         fidelity: Math.min(99.99, prev.fidelity + Math.random() * 0.01),
-        superpositionStates: Math.min(4096, prev.superpositionStates + Math.floor(Math.random() * 100))
+        superpositionStates: Math.min(
+          4096,
+          prev.superpositionStates + Math.floor(Math.random() * 100)
+        ),
       }))
     }
-    
+
     setProcessing(false)
     toast.success('Quantum Processing Complete! Reality has been optimized.')
   }
@@ -1027,7 +1137,7 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
                   <Atom className="w-8 h-8 mr-3" />
                   Quantum State Matrix
                 </h3>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
@@ -1035,47 +1145,69 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
                       <span className="text-cyan-400 font-bold text-xl">{quantumState.qubits}</span>
                     </div>
                     <div className="h-2 bg-gray-700 rounded-full">
-                      <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" style={{ width: `${(quantumState.qubits / 1024) * 100}%` }} />
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full"
+                        style={{ width: `${(quantumState.qubits / 1024) * 100}%` }}
+                      />
                     </div>
                   </div>
-                  
+
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-gray-300">Entanglement</span>
-                      <span className="text-purple-400 font-bold text-xl">{quantumState.entanglement.toFixed(1)}%</span>
+                      <span className="text-purple-400 font-bold text-xl">
+                        {quantumState.entanglement.toFixed(1)}%
+                      </span>
                     </div>
                     <div className="h-2 bg-gray-700 rounded-full">
-                      <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full" style={{ width: `${quantumState.entanglement}%` }} />
+                      <div
+                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                        style={{ width: `${quantumState.entanglement}%` }}
+                      />
                     </div>
                   </div>
-                  
+
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-gray-300">Coherence Time</span>
-                      <span className="text-green-400 font-bold text-xl">{quantumState.coherenceTime.toLocaleString()}μs</span>
+                      <span className="text-green-400 font-bold text-xl">
+                        {quantumState.coherenceTime.toLocaleString()}μs
+                      </span>
                     </div>
                     <div className="h-2 bg-gray-700 rounded-full">
-                      <div className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full" style={{ width: '95%' }} />
+                      <div
+                        className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"
+                        style={{ width: '95%' }}
+                      />
                     </div>
                   </div>
-                  
+
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-gray-300">Fidelity</span>
-                      <span className="text-yellow-400 font-bold text-xl">{quantumState.fidelity.toFixed(2)}%</span>
+                      <span className="text-yellow-400 font-bold text-xl">
+                        {quantumState.fidelity.toFixed(2)}%
+                      </span>
                     </div>
                     <div className="h-2 bg-gray-700 rounded-full">
-                      <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full" style={{ width: `${quantumState.fidelity}%` }} />
+                      <div
+                        className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full"
+                        style={{ width: `${quantumState.fidelity}%` }}
+                      />
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-6 bg-black/40 rounded-lg p-4">
-                  <h4 className="text-lg font-semibold text-cyan-300 mb-3">Advanced Quantum Metrics</h4>
+                  <h4 className="text-lg font-semibold text-cyan-300 mb-3">
+                    Advanced Quantum Metrics
+                  </h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-400">Gate Count</span>
-                      <span className="text-cyan-300">{quantumState.gateCount.toLocaleString()}</span>
+                      <span className="text-cyan-300">
+                        {quantumState.gateCount.toLocaleString()}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Quantum Volume</span>
@@ -1107,7 +1239,7 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
                   <Brain className="w-8 h-8 mr-3" />
                   Quantum Algorithm Suite
                 </h3>
-                
+
                 <div className="space-y-3">
                   {quantumAlgorithms.map((algo, index) => (
                     <motion.div
@@ -1120,11 +1252,15 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
                       <div className="flex-1">
                         <div className="flex items-center space-x-3">
                           <span className="text-white font-semibold">{algo.name}</span>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            algo.status === 'Ready' ? 'bg-green-500/20 text-green-300' :
-                            algo.status === 'Active' ? 'bg-blue-500/20 text-blue-300' :
-                            'bg-yellow-500/20 text-yellow-300'
-                          }`}>
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              algo.status === 'Ready'
+                                ? 'bg-green-500/20 text-green-300'
+                                : algo.status === 'Active'
+                                  ? 'bg-blue-500/20 text-blue-300'
+                                  : 'bg-yellow-500/20 text-yellow-300'
+                            }`}
+                          >
                             {algo.status}
                           </span>
                         </div>
@@ -1135,7 +1271,7 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
                       <div className="text-right">
                         <div className="text-cyan-300 font-bold">{algo.efficiency}%</div>
                         <div className="w-20 h-2 bg-gray-700 rounded-full mt-1">
-                          <div 
+                          <div
                             className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
                             style={{ width: `${algo.efficiency}%` }}
                           />
@@ -1150,8 +1286,10 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
             {/* 3D 양자 시각화 */}
             <div className="space-y-6">
               <div className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-xl p-6">
-                <h3 className="text-xl font-semibold text-indigo-300 mb-4">Quantum Visualization</h3>
-                <Advanced3DHologram 
+                <h3 className="text-xl font-semibold text-indigo-300 mb-4">
+                  Quantum Visualization
+                </h3>
+                <Advanced3DHologram
                   data={{ quantum: quantumState }}
                   type="quantum"
                   enabled={true}
@@ -1172,15 +1310,15 @@ const QuantumProcessor: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
                   >
                     {processing ? 'Processing Quantum Data...' : 'Process Quantum Reality'}
                   </button>
-                  
+
                   <button className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300">
                     Quantum Teleportation
                   </button>
-                  
+
                   <button className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300">
                     Entangle Particles
                   </button>
-                  
+
                   <button className="w-full bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300">
                     Quantum Supremacy
                   </button>
@@ -1222,19 +1360,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './com
 import { Badge } from './components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { Progress } from './components/ui/progress'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from './components/ui/dialog'
 import { Switch } from './components/ui/switch'
 import { Label } from './components/ui/label'
 import { Separator } from './components/ui/separator'
 import { Slider } from './components/ui/slider'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './components/ui/select'
 import { Input } from './components/ui/input'
 import { Textarea } from './components/ui/textarea'
 import { Checkbox } from './components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group'
 import { Popover, PopoverContent, PopoverTrigger } from './components/ui/popover'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu'
 
 // Core Advanced Components
 import { CaptureModal } from './components/CaptureModal'
@@ -1245,7 +1401,9 @@ import { ErrorFallback } from './ErrorFallback'
 // AI & Advanced Features (keeping some lazy imports for performance)
 const KnowledgeGraph = lazy(() => import('./components/Graph/KnowledgeGraph'))
 const AutoScheduler = lazy(() => import('./components/Calendar/AutoScheduler'))
-const CollaborationWorkspace = lazy(() => import('./components/Collaboration/CollaborationWorkspace'))
+const CollaborationWorkspace = lazy(
+  () => import('./components/Collaboration/CollaborationWorkspace')
+)
 const MagicCapture = lazy(() => import('./components/Capture/MagicCapture'))
 const AIOrchestrator = lazy(() => import('./components/AI/AIOrchestrator'))
 
@@ -1266,10 +1424,10 @@ import { useBlockchain } from './hooks/useBlockchain'
 import { useNeuralNetwork } from './hooks/useNeuralNetwork'
 
 // Enhanced API
-import enhancedAPI, { 
-  Note as APINote, 
-  Task as APITask, 
-  CalendarEvent as APICalendarEvent 
+import enhancedAPI, {
+  Note as APINote,
+  Task as APITask,
+  CalendarEvent as APICalendarEvent,
 } from './lib/enhanced-api'
 
 // Advanced Types & Interfaces - 미래형 확장
@@ -1296,16 +1454,45 @@ interface SuperAppState {
   loading: boolean
   error: string | null
   isOffline: boolean
-  syncStatus: 'idle' | 'syncing' | 'error' | 'quantum-sync' | 'interdimensional-sync' | 'consciousness-sync'
-  aiMode: 'gpt4' | 'gpt4-mini' | 'claude-3' | 'gemini-pro' | 'custom-neural' | 'quantum-ai' | 'consciousness-ai' | 'omniscient-ai'
+  syncStatus:
+    | 'idle'
+    | 'syncing'
+    | 'error'
+    | 'quantum-sync'
+    | 'interdimensional-sync'
+    | 'consciousness-sync'
+  aiMode:
+    | 'gpt4'
+    | 'gpt4-mini'
+    | 'claude-3'
+    | 'gemini-pro'
+    | 'custom-neural'
+    | 'quantum-ai'
+    | 'consciousness-ai'
+    | 'omniscient-ai'
   privacyMode: boolean
   collaborationActive: boolean
   quantumProcessingEnabled: boolean
   blockchainSecurityLevel: number
   neuralNetworkTraining: boolean
   performanceMode: 'eco' | 'balanced' | 'performance' | 'quantum' | 'transcendent' | 'omnipotent'
-  uiTheme: 'glassmorphism' | 'neumorphism' | 'brutalism' | 'minimalism' | 'cyberpunk' | 'holographic' | 'ethereal' | 'cosmic'
-  animationLevel: 'none' | 'minimal' | 'standard' | 'enhanced' | 'extreme' | 'reality-bending' | 'dimension-warping'
+  uiTheme:
+    | 'glassmorphism'
+    | 'neumorphism'
+    | 'brutalism'
+    | 'minimalism'
+    | 'cyberpunk'
+    | 'holographic'
+    | 'ethereal'
+    | 'cosmic'
+  animationLevel:
+    | 'none'
+    | 'minimal'
+    | 'standard'
+    | 'enhanced'
+    | 'extreme'
+    | 'reality-bending'
+    | 'dimension-warping'
   consciousnessLevel: number
   spiritualAlignment: 'material' | 'mental' | 'astral' | 'causal' | 'buddhic' | 'logoic' | 'monadic'
   cosmicConnection: boolean
@@ -1408,7 +1595,7 @@ const superQueryClient = new QueryClient({
       retry: 3,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
     mutations: {
       retry: 2,
@@ -1418,11 +1605,11 @@ const superQueryClient = new QueryClient({
 })
 
 // Advanced Loading Component
-const QuantumLoader = ({ message = "Initializing Quantum AI..." }) => (
+const QuantumLoader = ({ message = 'Initializing Quantum AI...' }) => (
   <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center relative overflow-hidden">
     <div className="absolute inset-0 bg-[url('/quantum-particles.png')] opacity-20 animate-pulse"></div>
     <div className="text-center space-y-8 z-10">
-      <motion.div 
+      <motion.div
         className="relative"
         animate={{
           rotateY: [0, 360],
@@ -1431,7 +1618,7 @@ const QuantumLoader = ({ message = "Initializing Quantum AI..." }) => (
         transition={{
           duration: 3,
           repeat: Infinity,
-          ease: "easeInOut"
+          ease: 'easeInOut',
         }}
       >
         <div className="w-24 h-24 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full blur-sm animate-spin"></div>
@@ -1439,7 +1626,7 @@ const QuantumLoader = ({ message = "Initializing Quantum AI..." }) => (
           <Brain className="h-8 w-8 text-primary animate-pulse" />
         </div>
       </motion.div>
-      <motion.div 
+      <motion.div
         className="space-y-4"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1451,8 +1638,14 @@ const QuantumLoader = ({ message = "Initializing Quantum AI..." }) => (
         <p className="text-muted-foreground text-lg">{message}</p>
         <div className="flex items-center justify-center space-x-2">
           <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-          <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+          <div
+            className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+            style={{ animationDelay: '0.1s' }}
+          ></div>
+          <div
+            className="w-2 h-2 bg-pink-400 rounded-full animate-bounce"
+            style={{ animationDelay: '0.2s' }}
+          ></div>
         </div>
       </motion.div>
     </div>
@@ -1501,14 +1694,14 @@ function SuperAISecondBrainApp() {
     updateTask,
     deleteTask,
     deleteNote,
-    deleteEvent
+    deleteEvent,
   } = useRealDataManager()
 
   const {
     conversation,
     isLoading: aiLoading,
     sendMessage,
-    clearConversation
+    clearConversation,
   } = useRealAIAssistant()
 
   // =====================
@@ -1532,7 +1725,7 @@ function SuperAISecondBrainApp() {
     consciousness: {
       level: 1,
       expansion: 0,
-      enlightenment: 0
+      enlightenment: 0,
     },
     loading: false, // 실제 로딩 상태로 변경
     error: null,
@@ -1564,7 +1757,7 @@ function SuperAISecondBrainApp() {
       mindControl: false,
       telepathicInterface: false,
       cosmicResonance: false,
-    }
+    },
   })
 
   const [superUIState, setSuperUIState] = useState<SuperUIState>({
@@ -1684,15 +1877,15 @@ function SuperAISecondBrainApp() {
   const loadSuperData = useCallback(async () => {
     try {
       setSuperAppState(prev => ({ ...prev, loading: true, error: null }))
-      
+
       const startDate = safeToISOString(new Date())
       const endDate = safeToISOString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
-      
+
       const [notes, tasks, events, user] = await Promise.all([
         enhancedAPI.getNotes(),
         enhancedAPI.getTasks(),
         enhancedAPI.getCalendarEvents(startDate, endDate),
-        Promise.resolve({ id: 1, name: 'User', email: 'user@example.com' })
+        Promise.resolve({ id: 1, name: 'User', email: 'user@example.com' }),
       ])
 
       // Quantum data processing - skip if not properly initialized
@@ -1705,9 +1898,9 @@ function SuperAISecondBrainApp() {
             qubits: 3,
             gates: [
               { type: 'H' as const, target: 0 },
-              { type: 'CNOT' as const, target: 1, control: 0 }
+              { type: 'CNOT' as const, target: 1, control: 0 },
             ],
-            measurements: [0, 1, 2]
+            measurements: [0, 1, 2],
           }
           await processQuantum(dataProcessingCircuit)
         } catch (quantumError) {
@@ -1725,13 +1918,16 @@ function SuperAISecondBrainApp() {
           createdAt: note.created_at,
           updatedAt: note.updated_at,
           collaborators: [],
-          isEncrypted: false
+          isEncrypted: false,
         })),
         tasks: tasks.map(task => ({
           id: task.id.toString(),
           title: task.title,
           description: task.description,
-          status: task.status === 'pending' ? 'todo' : task.status as 'in-progress' | 'completed' | 'cancelled',
+          status:
+            task.status === 'pending'
+              ? 'todo'
+              : (task.status as 'in-progress' | 'completed' | 'cancelled'),
           priority: task.priority as 'low' | 'medium' | 'high' | 'urgent',
           dueDate: task.due_at,
           tags: task.tags || [],
@@ -1739,7 +1935,7 @@ function SuperAISecondBrainApp() {
           updatedAt: task.updated_at,
           subtasks: [],
           dependencies: [],
-          assignee: undefined
+          assignee: undefined,
         })),
         events: events.map(event => ({
           id: event.id.toString(),
@@ -1754,7 +1950,7 @@ function SuperAISecondBrainApp() {
           tags: [], // Default empty as API doesn't provide this
           createdAt: event.created_at,
           updatedAt: event.updated_at,
-          recurrence: undefined // Default as API doesn't provide this
+          recurrence: undefined, // Default as API doesn't provide this
         })),
         insights: [],
         projects: [],
@@ -1782,71 +1978,80 @@ function SuperAISecondBrainApp() {
   // =====================
   // SUPER EVENT HANDLERS
   // =====================
-  const handleNoteCreated = useCallback(async (note: Note) => {
-    setSuperAppState(prev => ({
-      ...prev,
-      notes: [note, ...prev.notes],
-    }))
-    
-    // AI-powered auto-categorization
-    try {
-      // 간단한 AI 처리 시뮬레이션
-      const enhancedNote = { ...note, enhanced: true }
-      
-      // Blockchain verification
-      if (superAppState.blockchainSecurityLevel > 7) {
-        await createBlock('note')
-      }
-      
-      toast.success('Note created with AI enhancement!')
-    } catch (error) {
-      console.error('Error enhancing note:', error)
-      toast.success('Note created successfully!')
-    }
-  }, [superAppState.blockchainSecurityLevel, createBlock])
+  const handleNoteCreated = useCallback(
+    async (note: Note) => {
+      setSuperAppState(prev => ({
+        ...prev,
+        notes: [note, ...prev.notes],
+      }))
 
-  const handleTaskCreated = useCallback(async (task: Task) => {
-    setSuperAppState(prev => ({
-      ...prev,
-      tasks: [task, ...prev.tasks],
-    }))
-    
-    try {
-      // AI-powered task optimization 시뮬레이션
-      const optimizedTask = { ...task, optimized: true }
-      
-      // Auto-schedule with quantum computing
-      if (superAppState.quantumProcessingEnabled) {
-        // 양자 처리 시뮬레이션
-        console.log('Quantum schedule optimization:', optimizedTask)
-      }
-      
-      toast.success('Task created with Quantum optimization!')
-    } catch (error) {
-      console.error('Error optimizing task:', error)
-      toast.success('Task created successfully!')
-    }
-  }, [superAppState.quantumProcessingEnabled])
+      // AI-powered auto-categorization
+      try {
+        // 간단한 AI 처리 시뮬레이션
+        const enhancedNote = { ...note, enhanced: true }
 
-  const handleEventCreated = useCallback(async (event: APICalendarEvent) => {
-    setSuperAppState(prev => ({
-      ...prev,
-      events: [event, ...prev.events],
-    }))
-    
-    try {
-      // AI conflict detection 시뮬레이션
-      const conflicts: any[] = []
-      if (conflicts.length > 0) {
-        toast.warning(`Detected ${conflicts.length} potential conflicts`)
+        // Blockchain verification
+        if (superAppState.blockchainSecurityLevel > 7) {
+          await createBlock('note')
+        }
+
+        toast.success('Note created with AI enhancement!')
+      } catch (error) {
+        console.error('Error enhancing note:', error)
+        toast.success('Note created successfully!')
       }
-      
-      toast.success('Event created with AI conflict detection!')
-    } catch (error) {
-      console.error('Error detecting conflicts:', error)
-      toast.success('Event created successfully!')
-    }
-  }, [superAppState.events])
+    },
+    [superAppState.blockchainSecurityLevel, createBlock]
+  )
+
+  const handleTaskCreated = useCallback(
+    async (task: Task) => {
+      setSuperAppState(prev => ({
+        ...prev,
+        tasks: [task, ...prev.tasks],
+      }))
+
+      try {
+        // AI-powered task optimization 시뮬레이션
+        const optimizedTask = { ...task, optimized: true }
+
+        // Auto-schedule with quantum computing
+        if (superAppState.quantumProcessingEnabled) {
+          // 양자 처리 시뮬레이션
+          console.log('Quantum schedule optimization:', optimizedTask)
+        }
+
+        toast.success('Task created with Quantum optimization!')
+      } catch (error) {
+        console.error('Error optimizing task:', error)
+        toast.success('Task created successfully!')
+      }
+    },
+    [superAppState.quantumProcessingEnabled]
+  )
+
+  const handleEventCreated = useCallback(
+    async (event: APICalendarEvent) => {
+      setSuperAppState(prev => ({
+        ...prev,
+        events: [event, ...prev.events],
+      }))
+
+      try {
+        // AI conflict detection 시뮬레이션
+        const conflicts: any[] = []
+        if (conflicts.length > 0) {
+          toast.warning(`Detected ${conflicts.length} potential conflicts`)
+        }
+
+        toast.success('Event created with AI conflict detection!')
+      } catch (error) {
+        console.error('Error detecting conflicts:', error)
+        toast.success('Event created successfully!')
+      }
+    },
+    [superAppState.events]
+  )
 
   // =====================
   // SUPER COMPUTED VALUES
@@ -1858,16 +2063,16 @@ function SuperAISecondBrainApp() {
     const totalProjects = superAppState.projects.length
     const activeProjects = superAppState.projects.filter(p => p.status === 'active').length
     const totalTeams = superAppState.teams.length
-    const todayEvents = superAppState.events.filter(e => 
-      new Date(e.start_at).toDateString() === new Date().toDateString()
+    const todayEvents = superAppState.events.filter(
+      e => new Date(e.start_at).toDateString() === new Date().toDateString()
     ).length
-    
+
     const productivityScore = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
     const quantumEfficiency = superAppState.quantumProcessingEnabled ? 95 : 0
     const blockchainSecurity = superAppState.blockchainSecurityLevel * 10
     const neuralAccuracy = superAppState.neuralNetworkTraining ? 98 : 85
     const collaborationIndex = connectedUsers.length * 25
-    
+
     return {
       totalNotes,
       totalTasks,
@@ -1881,7 +2086,14 @@ function SuperAISecondBrainApp() {
       blockchainSecurity,
       neuralAccuracy,
       collaborationIndex,
-      overallPerformance: Math.round((productivityScore + quantumEfficiency + blockchainSecurity + neuralAccuracy + collaborationIndex) / 5)
+      overallPerformance: Math.round(
+        (productivityScore +
+          quantumEfficiency +
+          blockchainSecurity +
+          neuralAccuracy +
+          collaborationIndex) /
+          5
+      ),
     }
   }, [superAppState, connectedUsers])
 
@@ -1898,7 +2110,7 @@ function SuperAISecondBrainApp() {
   if (superAppState.error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-900 via-purple-900 to-indigo-900 flex items-center justify-center">
-        <motion.div 
+        <motion.div
           className="text-center space-y-6 max-w-md"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1911,7 +2123,10 @@ function SuperAISecondBrainApp() {
             <h2 className="text-2xl font-bold text-white">Quantum Error Detected</h2>
             <p className="text-gray-300">{superAppState.error}</p>
           </div>
-          <Button onClick={loadSuperData} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+          <Button
+            onClick={loadSuperData}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+          >
             <Rocket className="h-4 w-4 mr-2" />
             Reinitialize Quantum Systems
           </Button>
@@ -1925,13 +2140,17 @@ function SuperAISecondBrainApp() {
   // =====================
   return (
     <TooltipProvider>
-      <div className={`min-h-screen transition-all duration-500 ${
-        superUIState.theme === 'dark' 
-          ? 'bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900'
-          : superUIState.theme === 'quantum'
-          ? 'bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-900'
-          : 'bg-background'
-      } ${superUIState.focusMode ? 'focus-mode' : ''} ${superUIState.zenMode ? 'zen-mode' : ''}`}>        {/* ===================== */}
+      <div
+        className={`min-h-screen transition-all duration-500 ${
+          superUIState.theme === 'dark'
+            ? 'bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900'
+            : superUIState.theme === 'quantum'
+              ? 'bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-900'
+              : 'bg-background'
+        } ${superUIState.focusMode ? 'focus-mode' : ''} ${superUIState.zenMode ? 'zen-mode' : ''}`}
+      >
+        {' '}
+        {/* ===================== */}
         {/* QUANTUM STATUS BAR    */}
         {/* ===================== */}
         <motion.div
@@ -1943,10 +2162,7 @@ function SuperAISecondBrainApp() {
         >
           <div className="flex items-center justify-between px-3 md:px-6 py-2 md:py-3 text-xs md:text-sm">
             <div className="flex items-center gap-3 md:gap-6">
-              <motion.div 
-                className="flex items-center gap-3"
-                whileHover={{ scale: 1.05 }}
-              >
+              <motion.div className="flex items-center gap-3" whileHover={{ scale: 1.05 }}>
                 <div className="relative">
                   <Brain className="h-6 w-6 text-purple-500" />
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full animate-pulse"></div>
@@ -1958,13 +2174,15 @@ function SuperAISecondBrainApp() {
                   Quantum Edition
                 </Badge>
               </motion.div>
-              
+
               {/* Advanced Status Indicators */}
               <div className="flex items-center gap-4">
                 <Tooltip>
                   <TooltipTrigger>
                     <div className="flex items-center gap-1">
-                      <div className={`h-2 w-2 rounded-full ${isOffline ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+                      <div
+                        className={`h-2 w-2 rounded-full ${isOffline ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}
+                      />
                       <span className="text-xs text-muted-foreground">
                         {isOffline ? 'Offline' : 'Quantum Sync'}
                       </span>
@@ -1974,7 +2192,7 @@ function SuperAISecondBrainApp() {
                     {isOffline ? 'Working offline with local data' : 'Connected to Quantum Cloud'}
                   </TooltipContent>
                 </Tooltip>
-                
+
                 {superAppState.quantumProcessingEnabled && (
                   <Tooltip>
                     <TooltipTrigger>
@@ -1984,11 +2202,12 @@ function SuperAISecondBrainApp() {
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      Quantum processing active - {superAppState.quantumProcessingEnabled ? 95 : 0}% efficiency
+                      Quantum processing active - {superAppState.quantumProcessingEnabled ? 95 : 0}%
+                      efficiency
                     </TooltipContent>
                   </Tooltip>
                 )}
-                
+
                 {superAppState.blockchainSecurityLevel > 5 && (
                   <Tooltip>
                     <TooltipTrigger>
@@ -2002,23 +2221,23 @@ function SuperAISecondBrainApp() {
                     </TooltipContent>
                   </Tooltip>
                 )}
-                
+
                 {isConnected && connectedUsers.length > 0 && (
                   <Tooltip>
                     <TooltipTrigger>
                       <div className="flex items-center gap-1">
                         <Network className="h-3 w-3 text-blue-500 animate-pulse" />
-                        <span className="text-xs text-blue-500">{connectedUsers.length} connected</span>
+                        <span className="text-xs text-blue-500">
+                          {connectedUsers.length} connected
+                        </span>
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent>
-                      Real-time collaboration active
-                    </TooltipContent>
+                    <TooltipContent>Real-time collaboration active</TooltipContent>
                   </Tooltip>
                 )}
               </div>
             </div>
-            
+
             {/* Super Quick Actions */}
             <div className="flex items-center gap-1 md:gap-2">
               <Button
@@ -2030,7 +2249,7 @@ function SuperAISecondBrainApp() {
                 <Command className="h-3 w-3 md:mr-1" />
                 <span className="hidden md:inline">Cmd+K</span>
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -2040,7 +2259,7 @@ function SuperAISecondBrainApp() {
                 <Plus className="h-3 w-3 mr-1" />
                 Capture
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -2050,7 +2269,7 @@ function SuperAISecondBrainApp() {
                 <Sparkle className="h-3 w-3 mr-1" />
                 AI
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -2063,7 +2282,6 @@ function SuperAISecondBrainApp() {
             </div>
           </div>
         </motion.div>
-
         {/* ===================== */}
         {/* SUPER NAVIGATION      */}
         {/* ===================== */}
@@ -2078,27 +2296,32 @@ function SuperAISecondBrainApp() {
             {/* Mobile Navigation */}
             <div className="md:hidden flex items-center gap-4">
               <button
-                onClick={() => setSuperUIState(prev => ({ ...prev, mobileMenuOpen: !prev.mobileMenuOpen }))}
+                onClick={() =>
+                  setSuperUIState(prev => ({ ...prev, mobileMenuOpen: !prev.mobileMenuOpen }))
+                }
                 className="p-2 text-foreground hover:bg-background/50 rounded-lg transition-colors"
               >
                 <Command className="h-5 w-5" />
               </button>
               <span className="text-sm font-medium text-foreground">
-                {superAppState.currentPage.charAt(0).toUpperCase() + superAppState.currentPage.slice(1)}
+                {superAppState.currentPage.charAt(0).toUpperCase() +
+                  superAppState.currentPage.slice(1)}
               </span>
             </div>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-6 lg:gap-8">
-              {([
-                { id: 'dashboard', icon: ChartLine, label: 'Dashboard' },
-                { id: 'notes', icon: FileText, label: 'Notes' },
-                { id: 'tasks', icon: Target, label: 'Tasks' },
-                { id: 'calendar', icon: Calendar, label: 'Calendar' },
-                { id: 'projects', icon: Folder, label: 'Projects' },
-                { id: 'collaboration', icon: Network, label: 'Collaboration' },
-                { id: 'quantum', icon: Atom, label: 'Quantum' },
-              ] as const).map((page) => {
+              {(
+                [
+                  { id: 'dashboard', icon: ChartLine, label: 'Dashboard' },
+                  { id: 'notes', icon: FileText, label: 'Notes' },
+                  { id: 'tasks', icon: Target, label: 'Tasks' },
+                  { id: 'calendar', icon: Calendar, label: 'Calendar' },
+                  { id: 'projects', icon: Folder, label: 'Projects' },
+                  { id: 'collaboration', icon: Network, label: 'Collaboration' },
+                  { id: 'quantum', icon: Atom, label: 'Quantum' },
+                ] as const
+              ).map(page => {
                 const Icon = page.icon
                 return (
                   <motion.button
@@ -2118,7 +2341,7 @@ function SuperAISecondBrainApp() {
                 )
               })}
             </div>
-            
+
             <div className="flex items-center gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -2127,29 +2350,44 @@ function SuperAISecondBrainApp() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuItem onClick={() => setSuperUIState(prev => ({ ...prev, focusMode: !prev.focusMode }))}>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      setSuperUIState(prev => ({ ...prev, focusMode: !prev.focusMode }))
+                    }
+                  >
                     <Eye className="h-4 w-4 mr-2" />
                     Focus Mode
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSuperUIState(prev => ({ ...prev, zenMode: !prev.zenMode }))}>
+                  <DropdownMenuItem
+                    onClick={() => setSuperUIState(prev => ({ ...prev, zenMode: !prev.zenMode }))}
+                  >
                     <Moon className="h-4 w-4 mr-2" />
                     Zen Mode
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSuperUIState(prev => ({ ...prev, isQuantumProcessorOpen: true }))}>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      setSuperUIState(prev => ({ ...prev, isQuantumProcessorOpen: true }))
+                    }
+                  >
                     <Atom className="h-4 w-4 mr-2" />
                     Quantum Processor
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSuperUIState(prev => ({ ...prev, isARViewerOpen: true }))}>
+                  <DropdownMenuItem
+                    onClick={() => setSuperUIState(prev => ({ ...prev, isARViewerOpen: true }))}
+                  >
                     <Crown className="h-4 w-4 mr-2" />
                     AR Viewer
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-500 hover:text-red-600">
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="text-red-500 hover:text-red-600"
+                  >
                     <LogOut className="h-4 w-4 mr-2" />
                     로그아웃
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              
+
               <Button
                 variant="outline"
                 size="sm"
@@ -2158,7 +2396,7 @@ function SuperAISecondBrainApp() {
               >
                 <Graph className="h-4 w-4" />
               </Button>
-              
+
               <Button
                 variant="outline"
                 size="sm"
@@ -2170,7 +2408,6 @@ function SuperAISecondBrainApp() {
             </div>
           </div>
         </motion.nav>
-
         {/* Mobile Menu Overlay */}
         <AnimatePresence>
           {superUIState.mobileMenuOpen && (
@@ -2196,15 +2433,17 @@ function SuperAISecondBrainApp() {
               >
                 <div className="p-4">
                   <div className="grid grid-cols-2 gap-3">
-                    {([
-                      { id: 'dashboard', icon: ChartLine, label: 'Dashboard' },
-                      { id: 'notes', icon: FileText, label: 'Notes' },
-                      { id: 'tasks', icon: Target, label: 'Tasks' },
-                      { id: 'calendar', icon: Calendar, label: 'Calendar' },
-                      { id: 'projects', icon: Folder, label: 'Projects' },
-                      { id: 'collaboration', icon: Network, label: 'Collaboration' },
-                      { id: 'quantum', icon: Atom, label: 'Quantum' },
-                    ] as const).map((page) => {
+                    {(
+                      [
+                        { id: 'dashboard', icon: ChartLine, label: 'Dashboard' },
+                        { id: 'notes', icon: FileText, label: 'Notes' },
+                        { id: 'tasks', icon: Target, label: 'Tasks' },
+                        { id: 'calendar', icon: Calendar, label: 'Calendar' },
+                        { id: 'projects', icon: Folder, label: 'Projects' },
+                        { id: 'collaboration', icon: Network, label: 'Collaboration' },
+                        { id: 'quantum', icon: Atom, label: 'Quantum' },
+                      ] as const
+                    ).map(page => {
                       const Icon = page.icon
                       return (
                         <motion.button
@@ -2232,7 +2471,6 @@ function SuperAISecondBrainApp() {
             </motion.div>
           )}
         </AnimatePresence>
-
         {/* ===================== */}
         {/* SUPER MAIN CONTENT    */}
         {/* ===================== */}
@@ -2240,7 +2478,7 @@ function SuperAISecondBrainApp() {
           className="container mx-auto px-3 md:px-6 py-4 md:py-8"
           style={{
             paddingTop: 'calc(8rem + env(safe-area-inset-top))',
-            paddingBottom: 'env(safe-area-inset-bottom)'
+            paddingBottom: 'env(safe-area-inset-bottom)',
           }}
         >
           <AnimatePresence mode="wait">
@@ -2251,10 +2489,12 @@ function SuperAISecondBrainApp() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <Suspense fallback={<QuantumLoader message={`Loading ${superAppState.currentPage}...`} />}>
+              <Suspense
+                fallback={<QuantumLoader message={`Loading ${superAppState.currentPage}...`} />}
+              >
                 {superAppState.currentPage === 'dashboard' && (
-                  <DashboardViewUltraModern 
-                    onNavigate={(page) => setSuperAppState(prev => ({ ...prev, currentPage: page }))}
+                  <DashboardViewUltraModern
+                    onNavigate={page => setSuperAppState(prev => ({ ...prev, currentPage: page }))}
                     notes={superAppState.notes}
                     tasks={superAppState.tasks}
                     events={superAppState.events}
@@ -2264,7 +2504,7 @@ function SuperAISecondBrainApp() {
                 )}
 
                 {superAppState.currentPage === 'notes' && (
-                  <NotesPageUltraModern 
+                  <NotesPageUltraModern
                     onNoteCreated={handleNoteCreated}
                     notes={superAppState.notes}
                     // quantumEnabled={superAppState.quantumProcessingEnabled}
@@ -2272,7 +2512,7 @@ function SuperAISecondBrainApp() {
                 )}
 
                 {superAppState.currentPage === 'tasks' && (
-                  <TasksPageUltraModern 
+                  <TasksPageUltraModern
                     onTaskCreated={handleTaskCreated}
                     tasks={superAppState.tasks}
                     projects={superAppState.projects}
@@ -2281,7 +2521,7 @@ function SuperAISecondBrainApp() {
                 )}
 
                 {superAppState.currentPage === 'calendar' && (
-                  <CalendarPageUltraModernEnhanced 
+                  <CalendarPageUltraModernEnhanced
                     onEventCreated={handleEventCreated}
                     onTaskCreated={handleTaskCreated}
                     events={superAppState.events}
@@ -2293,11 +2533,11 @@ function SuperAISecondBrainApp() {
                 {superAppState.currentPage === 'collaboration' && (
                   <>
                     {!superUIState.isSharedWorkspaceOpen ? (
-                      <CollaborationPage 
+                      <CollaborationPage
                         currentUser={{
                           id: '1',
                           name: 'User',
-                          email: 'user@example.com'
+                          email: 'user@example.com',
                         }}
                       />
                     ) : (
@@ -2305,12 +2545,12 @@ function SuperAISecondBrainApp() {
                         currentUser={{
                           id: '1',
                           name: 'User',
-                          email: 'user@example.com'
+                          email: 'user@example.com',
                         }}
                         documentId="shared-doc-1"
-                        onDocumentChange={(doc) => {
+                        onDocumentChange={doc => {
                           // Handle document changes
-                          console.log('Document updated:', doc);
+                          console.log('Document updated:', doc)
                         }}
                       />
                     )}
@@ -2331,7 +2571,7 @@ function SuperAISecondBrainApp() {
                         Harness the power of quantum computing for ultimate productivity
                       </p>
                     </motion.div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       <Card className="border-cyan-500/20">
                         <CardHeader>
@@ -2344,24 +2584,34 @@ function SuperAISecondBrainApp() {
                           <div className="space-y-4">
                             <div className="flex justify-between items-center">
                               <span>Status</span>
-                              <Badge variant={superAppState.quantumProcessingEnabled ? "default" : "secondary"}>
-                                {superAppState.quantumProcessingEnabled ? "Active" : "Inactive"}
+                              <Badge
+                                variant={
+                                  superAppState.quantumProcessingEnabled ? 'default' : 'secondary'
+                                }
+                              >
+                                {superAppState.quantumProcessingEnabled ? 'Active' : 'Inactive'}
                               </Badge>
                             </div>
-                            <Progress value={superAppState.quantumProcessingEnabled ? 95 : 0} className="h-2" />
-                            <Button 
-                              onClick={() => setSuperAppState(prev => ({ 
-                                ...prev, 
-                                quantumProcessingEnabled: !prev.quantumProcessingEnabled 
-                              }))}
+                            <Progress
+                              value={superAppState.quantumProcessingEnabled ? 95 : 0}
+                              className="h-2"
+                            />
+                            <Button
+                              onClick={() =>
+                                setSuperAppState(prev => ({
+                                  ...prev,
+                                  quantumProcessingEnabled: !prev.quantumProcessingEnabled,
+                                }))
+                              }
                               className="w-full"
                             >
-                              {superAppState.quantumProcessingEnabled ? "Disable" : "Enable"} Quantum
+                              {superAppState.quantumProcessingEnabled ? 'Disable' : 'Enable'}{' '}
+                              Quantum
                             </Button>
                           </div>
                         </CardContent>
                       </Card>
-                      
+
                       <Card className="border-green-500/20">
                         <CardHeader>
                           <CardTitle className="flex items-center gap-2">
@@ -2373,28 +2623,30 @@ function SuperAISecondBrainApp() {
                           <div className="space-y-4">
                             <div className="flex justify-between items-center">
                               <span>Security Level</span>
-                              <Badge variant="outline">{superAppState.blockchainSecurityLevel}/10</Badge>
+                              <Badge variant="outline">
+                                {superAppState.blockchainSecurityLevel}/10
+                              </Badge>
                             </div>
                             <Slider
                               value={[superAppState.blockchainSecurityLevel]}
-                              onValueChange={([value]) => 
-                                setSuperAppState(prev => ({ ...prev, blockchainSecurityLevel: value }))
+                              onValueChange={([value]) =>
+                                setSuperAppState(prev => ({
+                                  ...prev,
+                                  blockchainSecurityLevel: value,
+                                }))
                               }
                               max={10}
                               min={1}
                               step={1}
                               className="w-full"
                             />
-                            <Button 
-                              onClick={() => createBlock('security')}
-                              className="w-full"
-                            >
+                            <Button onClick={() => createBlock('security')} className="w-full">
                               Update Security
                             </Button>
                           </div>
                         </CardContent>
                       </Card>
-                      
+
                       <Card className="border-purple-500/20">
                         <CardHeader>
                           <CardTitle className="flex items-center gap-2">
@@ -2406,22 +2658,32 @@ function SuperAISecondBrainApp() {
                           <div className="space-y-4">
                             <div className="flex justify-between items-center">
                               <span>Training</span>
-                              <Badge variant={superAppState.neuralNetworkTraining ? "default" : "secondary"}>
-                                {superAppState.neuralNetworkTraining ? "Active" : "Idle"}
+                              <Badge
+                                variant={
+                                  superAppState.neuralNetworkTraining ? 'default' : 'secondary'
+                                }
+                              >
+                                {superAppState.neuralNetworkTraining ? 'Active' : 'Idle'}
                               </Badge>
                             </div>
                             <Progress value={neuralNetwork?.accuracy || 0} className="h-2" />
-                            <Button 
+                            <Button
                               onClick={() => {
                                 setSuperAppState(prev => ({ ...prev, neuralNetworkTraining: true }))
                                 trainNetwork('notes and tasks data', [
-                                  { input: 'notes and tasks data', output: 'training complete', context: 'initial training' }
+                                  {
+                                    input: 'notes and tasks data',
+                                    output: 'training complete',
+                                    context: 'initial training',
+                                  },
                                 ])
                               }}
                               className="w-full"
                               disabled={superAppState.neuralNetworkTraining}
                             >
-                              {superAppState.neuralNetworkTraining ? "Training..." : "Train Network"}
+                              {superAppState.neuralNetworkTraining
+                                ? 'Training...'
+                                : 'Train Network'}
                             </Button>
                           </div>
                         </CardContent>
@@ -2433,13 +2695,14 @@ function SuperAISecondBrainApp() {
             </motion.div>
           </AnimatePresence>
         </main>
-
         {/* ===================== */}
         {/* SUPER MODALS & DIALOGS */}
         {/* ===================== */}
-        
         {/* Enhanced Capture Modal */}
-        <Dialog open={superUIState.isCaptureOpen} onOpenChange={(open) => setSuperUIState(prev => ({ ...prev, isCaptureOpen: open }))}>
+        <Dialog
+          open={superUIState.isCaptureOpen}
+          onOpenChange={open => setSuperUIState(prev => ({ ...prev, isCaptureOpen: open }))}
+        >
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -2455,14 +2718,16 @@ function SuperAISecondBrainApp() {
                 isOpen={superUIState.isCaptureOpen}
                 onClose={() => setSuperUIState(prev => ({ ...prev, isCaptureOpen: false }))}
                 onNoteCreated={handleNoteCreated}
-                onTasksCreated={(tasks) => tasks.forEach(handleTaskCreated)}
+                onTasksCreated={tasks => tasks.forEach(handleTaskCreated)}
               />
             </Suspense>
           </DialogContent>
         </Dialog>
-        
         {/* Super Command Palette */}
-        <Dialog open={superUIState.isCommandPaletteOpen} onOpenChange={(open) => setSuperUIState(prev => ({ ...prev, isCommandPaletteOpen: open }))}>
+        <Dialog
+          open={superUIState.isCommandPaletteOpen}
+          onOpenChange={open => setSuperUIState(prev => ({ ...prev, isCommandPaletteOpen: open }))}
+        >
           <DialogContent className="max-w-2xl" aria-describedby="command-palette-description">
             <div id="command-palette-description" className="sr-only">
               Quick access to all application features and commands
@@ -2471,17 +2736,21 @@ function SuperAISecondBrainApp() {
               <CommandPalette
                 isOpen={superUIState.isCommandPaletteOpen}
                 onClose={() => setSuperUIState(prev => ({ ...prev, isCommandPaletteOpen: false }))}
-                onNavigate={(page) => setSuperAppState(prev => ({ ...prev, currentPage: page }))}
+                onNavigate={page => setSuperAppState(prev => ({ ...prev, currentPage: page }))}
                 onCreateNote={() => setSuperUIState(prev => ({ ...prev, isCaptureOpen: true }))}
                 onCreateTask={() => setSuperUIState(prev => ({ ...prev, isCaptureOpen: true }))}
-                onCreateEvent={() => setSuperAppState(prev => ({ ...prev, currentPage: 'calendar' }))}
+                onCreateEvent={() =>
+                  setSuperAppState(prev => ({ ...prev, currentPage: 'calendar' }))
+                }
               />
             </Suspense>
           </DialogContent>
         </Dialog>
-
         {/* AI Assistant Dialog */}
-        <Dialog open={superUIState.isAIAssistantOpen} onOpenChange={(open) => setSuperUIState(prev => ({ ...prev, isAIAssistantOpen: open }))}>
+        <Dialog
+          open={superUIState.isAIAssistantOpen}
+          onOpenChange={open => setSuperUIState(prev => ({ ...prev, isAIAssistantOpen: open }))}
+        >
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -2497,35 +2766,39 @@ function SuperAISecondBrainApp() {
                 notes={superAppState.notes}
                 tasks={superAppState.tasks}
                 events={superAppState.events}
-                onNoteCreated={async (note) => {
-                  const newNote = convertToEnhancedNote(note);
+                onNoteCreated={async note => {
+                  const newNote = convertToEnhancedNote(note)
                   setSuperAppState(prev => ({
                     ...prev,
-                    notes: [...prev.notes, newNote]
-                  }));
+                    notes: [...prev.notes, newNote],
+                  }))
                 }}
-                onTaskCreated={(task) => {
-                  const newTask = convertToEnhancedTask(task);
+                onTaskCreated={task => {
+                  const newTask = convertToEnhancedTask(task)
                   setSuperAppState(prev => ({
                     ...prev,
-                    tasks: [...prev.tasks, newTask]
-                  }));
+                    tasks: [...prev.tasks, newTask],
+                  }))
                 }}
-                onEventCreated={(event) => {
-                  const newEvent = convertToEnhancedEvent(event);
+                onEventCreated={event => {
+                  const newEvent = convertToEnhancedEvent(event)
                   setSuperAppState(prev => ({
                     ...prev,
-                    events: [...prev.events, newEvent]
-                  }));
+                    events: [...prev.events, newEvent],
+                  }))
                 }}
               />
             </Suspense>
           </DialogContent>
         </Dialog>
-
         {/* Additional Super Dialogs */}
         {superUIState.isQuantumProcessorOpen && (
-          <Dialog open={superUIState.isQuantumProcessorOpen} onOpenChange={(open) => setSuperUIState(prev => ({ ...prev, isQuantumProcessorOpen: open }))}>
+          <Dialog
+            open={superUIState.isQuantumProcessorOpen}
+            onOpenChange={open =>
+              setSuperUIState(prev => ({ ...prev, isQuantumProcessorOpen: open }))
+            }
+          >
             <DialogContent className="max-w-4xl">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -2563,14 +2836,13 @@ function SuperAISecondBrainApp() {
             </DialogContent>
           </Dialog>
         )}
-
         {/* Floating AI Assistant */}
         {superUIState.contextualAssistantVisible && !superUIState.isAIAssistantOpen && (
           <motion.div
             className="fixed bottom-6 right-6 z-50"
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
           >
             <Button
               onClick={() => setSuperUIState(prev => ({ ...prev, isAIAssistantOpen: true }))}
@@ -2580,7 +2852,6 @@ function SuperAISecondBrainApp() {
             </Button>
           </motion.div>
         )}
-
         {/* Picture-in-Picture Manager */}
         <PIPManager maxWindows={5}>
           <div>
@@ -2590,13 +2861,13 @@ function SuperAISecondBrainApp() {
                 roomId="current-room"
                 participants={[
                   { id: '1', name: 'You' },
-                  { id: '2', name: 'Collaborator' }
+                  { id: '2', name: 'Collaborator' },
                 ]}
                 onExpand={() => {
-                  setSuperUIState(prev => ({ 
-                    ...prev, 
+                  setSuperUIState(prev => ({
+                    ...prev,
                     currentPage: 'collaboration',
-                    isVideoCallPipActive: false 
+                    isVideoCallPipActive: false,
                   }))
                 }}
                 onClose={() => {
@@ -2609,23 +2880,32 @@ function SuperAISecondBrainApp() {
             {superUIState.isNotesPipActive && superUIState.selectedNoteId && (
               <MiniNotesPIP
                 noteId={superUIState.selectedNoteId.toString()}
-                title={superAppState.notes.find(n => n.id === superUIState.selectedNoteId?.toString())?.title || 'Untitled Note'}
-                content={superAppState.notes.find(n => n.id === superUIState.selectedNoteId?.toString())?.content || ''}
+                title={
+                  superAppState.notes.find(n => n.id === superUIState.selectedNoteId?.toString())
+                    ?.title || 'Untitled Note'
+                }
+                content={
+                  superAppState.notes.find(n => n.id === superUIState.selectedNoteId?.toString())
+                    ?.content || ''
+                }
                 onEdit={() => {
-                  setSuperUIState(prev => ({ 
-                    ...prev, 
+                  setSuperUIState(prev => ({
+                    ...prev,
                     currentPage: 'notes',
-                    isNotesPipActive: false 
+                    isNotesPipActive: false,
                   }))
                 }}
                 onClose={() => {
-                  setSuperUIState(prev => ({ ...prev, isNotesPipActive: false, selectedNoteId: null }))
+                  setSuperUIState(prev => ({
+                    ...prev,
+                    isNotesPipActive: false,
+                    selectedNoteId: null,
+                  }))
                 }}
               />
             )}
           </div>
         </PIPManager>
-
       </div>
     </TooltipProvider>
   )
@@ -2637,7 +2917,7 @@ function SuperAISecondBrainApp() {
 function SuperApp() {
   try {
     return (
-      <ErrorBoundary 
+      <ErrorBoundary
         FallbackComponent={({ error, resetErrorBoundary }) => (
           <div className="min-h-screen bg-gradient-to-br from-red-900 to-purple-900 flex items-center justify-center">
             <div className="text-center space-y-4 max-w-md">
@@ -2662,10 +2942,11 @@ function SuperApp() {
               closeButton
               toastOptions={{
                 style: {
-                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(219, 39, 119, 0.1))',
+                  background:
+                    'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(219, 39, 119, 0.1))',
                   backdropFilter: 'blur(10px)',
                   border: '1px solid rgba(139, 92, 246, 0.2)',
-                }
+                },
               }}
             />
           </AppProvider>
@@ -2679,8 +2960,13 @@ function SuperApp() {
         <div className="text-center space-y-4 max-w-md">
           <Lightning className="h-16 w-16 mx-auto text-red-400" />
           <h2 className="text-2xl font-bold text-white">Critical System Error</h2>
-          <p className="text-gray-300">The application encountered a critical error and cannot start.</p>
-          <Button onClick={() => window.location.reload()} className="bg-purple-600 hover:bg-purple-700">
+          <p className="text-gray-300">
+            The application encountered a critical error and cannot start.
+          </p>
+          <Button
+            onClick={() => window.location.reload()}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
             <Rocket className="h-4 w-4 mr-2" />
             Reload Application
           </Button>
@@ -2693,7 +2979,10 @@ function SuperApp() {
 export default SuperApp
 
 // 궁극의 블록체인 보안 매니저 - 절대 해킹 불가능한 보안
-const BlockchainSecurityManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+const BlockchainSecurityManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
+  isOpen,
+  onClose,
+}) => {
   const [blockchainState, setBlockchainState] = useState({
     blocks: 1000000,
     hashRate: '500 EH/s',
@@ -2704,34 +2993,118 @@ const BlockchainSecurityManager: React.FC<{ isOpen: boolean; onClose: () => void
     cryptography: 'Post-Quantum RSA-8192',
     transactions: 1000000000,
     energyEfficiency: 99.9,
-    decentralization: 100
+    decentralization: 100,
   })
 
   const [securityLevels] = useState([
-    { level: 1, name: 'Basic Encryption', description: 'AES-256', status: 'Surpassed', strength: '2^256' },
-    { level: 2, name: 'Military Grade', description: 'RSA-4096', status: 'Surpassed', strength: '2^4096' },
-    { level: 3, name: 'Banking Standard', description: 'ECC-571', status: 'Surpassed', strength: '2^571' },
-    { level: 4, name: 'Government Top Secret', description: 'Quantum-Safe', status: 'Surpassed', strength: '2^1024' },
-    { level: 5, name: 'Alien Technology', description: 'Lattice-Based', status: 'Surpassed', strength: '2^2048' },
-    { level: 6, name: 'Interdimensional', description: 'Multiverse Encryption', status: 'Surpassed', strength: '2^4096' },
-    { level: 7, name: 'Reality Encryption', description: 'Physics-Based', status: 'Surpassed', strength: '2^8192' },
-    { level: 8, name: 'Consciousness Encryption', description: 'Mind-Based', status: 'Surpassed', strength: '2^16384' },
-    { level: 9, name: 'Quantum Supremacy', description: 'Quantum Entanglement', status: 'Surpassed', strength: '2^32768' },
-    { level: 10, name: 'Universal Encryption', description: 'String Theory', status: 'ACTIVE', strength: '∞' }
+    {
+      level: 1,
+      name: 'Basic Encryption',
+      description: 'AES-256',
+      status: 'Surpassed',
+      strength: '2^256',
+    },
+    {
+      level: 2,
+      name: 'Military Grade',
+      description: 'RSA-4096',
+      status: 'Surpassed',
+      strength: '2^4096',
+    },
+    {
+      level: 3,
+      name: 'Banking Standard',
+      description: 'ECC-571',
+      status: 'Surpassed',
+      strength: '2^571',
+    },
+    {
+      level: 4,
+      name: 'Government Top Secret',
+      description: 'Quantum-Safe',
+      status: 'Surpassed',
+      strength: '2^1024',
+    },
+    {
+      level: 5,
+      name: 'Alien Technology',
+      description: 'Lattice-Based',
+      status: 'Surpassed',
+      strength: '2^2048',
+    },
+    {
+      level: 6,
+      name: 'Interdimensional',
+      description: 'Multiverse Encryption',
+      status: 'Surpassed',
+      strength: '2^4096',
+    },
+    {
+      level: 7,
+      name: 'Reality Encryption',
+      description: 'Physics-Based',
+      status: 'Surpassed',
+      strength: '2^8192',
+    },
+    {
+      level: 8,
+      name: 'Consciousness Encryption',
+      description: 'Mind-Based',
+      status: 'Surpassed',
+      strength: '2^16384',
+    },
+    {
+      level: 9,
+      name: 'Quantum Supremacy',
+      description: 'Quantum Entanglement',
+      status: 'Surpassed',
+      strength: '2^32768',
+    },
+    {
+      level: 10,
+      name: 'Universal Encryption',
+      description: 'String Theory',
+      status: 'ACTIVE',
+      strength: '∞',
+    },
   ])
 
   const [recentBlocks, setRecentBlocks] = useState([
-    { id: 1000000, hash: '0x00000000000000000001a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p', time: new Date(), size: '2.5 MB', txs: 5000 },
-    { id: 999999, hash: '0x00000000000000000002b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q', time: new Date(Date.now() - 600000), size: '2.3 MB', txs: 4800 },
-    { id: 999998, hash: '0x00000000000000000003c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r', time: new Date(Date.now() - 1200000), size: '2.7 MB', txs: 5200 },
-    { id: 999997, hash: '0x00000000000000000004d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s', time: new Date(Date.now() - 1800000), size: '2.4 MB', txs: 4900 }
+    {
+      id: 1000000,
+      hash: '0x00000000000000000001a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p',
+      time: new Date(),
+      size: '2.5 MB',
+      txs: 5000,
+    },
+    {
+      id: 999999,
+      hash: '0x00000000000000000002b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q',
+      time: new Date(Date.now() - 600000),
+      size: '2.3 MB',
+      txs: 4800,
+    },
+    {
+      id: 999998,
+      hash: '0x00000000000000000003c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r',
+      time: new Date(Date.now() - 1200000),
+      size: '2.7 MB',
+      txs: 5200,
+    },
+    {
+      id: 999997,
+      hash: '0x00000000000000000004d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s',
+      time: new Date(Date.now() - 1800000),
+      size: '2.4 MB',
+      txs: 4900,
+    },
   ])
 
   const [mining, setMining] = useState(false)
 
   const mineNewBlock = async () => {
     setMining(true)
-    
+
     // 블록 마이닝 시뮬레이션
     for (let i = 0; i <= 100; i += 20) {
       await new Promise(resolve => setTimeout(resolve, 300))
@@ -2739,19 +3112,19 @@ const BlockchainSecurityManager: React.FC<{ isOpen: boolean; onClose: () => void
         ...prev,
         difficulty: prev.difficulty + Math.floor(Math.random() * 1000000),
         hashRate: `${(parseFloat(prev.hashRate) + Math.random() * 10).toFixed(1)} EH/s`,
-        transactions: prev.transactions + Math.floor(Math.random() * 1000)
+        transactions: prev.transactions + Math.floor(Math.random() * 1000),
       }))
     }
-    
+
     // 새 블록 추가
     const newBlock = {
       id: blockchainState.blocks + 1,
       hash: `0x${'0'.repeat(18)}${Math.random().toString(16).substr(2, 32)}`,
       time: new Date(),
       size: `${(2 + Math.random()).toFixed(1)} MB`,
-      txs: Math.floor(4000 + Math.random() * 2000)
+      txs: Math.floor(4000 + Math.random() * 2000),
     }
-    
+
     setRecentBlocks(prev => [newBlock, ...prev.slice(0, 3)])
     setBlockchainState(prev => ({ ...prev, blocks: prev.blocks + 1 }))
     setMining(false)
@@ -2789,38 +3162,51 @@ const BlockchainSecurityManager: React.FC<{ isOpen: boolean; onClose: () => void
                   <Shield className="w-8 h-8 mr-3" />
                   Blockchain Network Status
                 </h3>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-gray-300">Total Blocks</span>
-                      <span className="text-emerald-400 font-bold text-xl">{blockchainState.blocks.toLocaleString()}</span>
+                      <span className="text-emerald-400 font-bold text-xl">
+                        {blockchainState.blocks.toLocaleString()}
+                      </span>
                     </div>
-                    <div className="text-xs text-gray-400">Genesis Block + {(blockchainState.blocks - 1).toLocaleString()}</div>
+                    <div className="text-xs text-gray-400">
+                      Genesis Block + {(blockchainState.blocks - 1).toLocaleString()}
+                    </div>
                   </div>
-                  
+
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-gray-300">Hash Rate</span>
-                      <span className="text-blue-400 font-bold text-xl">{blockchainState.hashRate}</span>
+                      <span className="text-blue-400 font-bold text-xl">
+                        {blockchainState.hashRate}
+                      </span>
                     </div>
                     <div className="text-xs text-gray-400">Quantum-Enhanced Mining</div>
                   </div>
-                  
+
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-gray-300">Security Level</span>
-                      <span className="text-red-400 font-bold text-xl">{blockchainState.security}%</span>
+                      <span className="text-red-400 font-bold text-xl">
+                        {blockchainState.security}%
+                      </span>
                     </div>
                     <div className="h-2 bg-gray-700 rounded-full">
-                      <div className="h-full bg-gradient-to-r from-red-500 to-orange-500 rounded-full" style={{ width: '100%' }} />
+                      <div
+                        className="h-full bg-gradient-to-r from-red-500 to-orange-500 rounded-full"
+                        style={{ width: '100%' }}
+                      />
                     </div>
                   </div>
-                  
+
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-gray-300">Validators</span>
-                      <span className="text-purple-400 font-bold text-xl">{blockchainState.validators.toLocaleString()}</span>
+                      <span className="text-purple-400 font-bold text-xl">
+                        {blockchainState.validators.toLocaleString()}
+                      </span>
                     </div>
                     <div className="text-xs text-gray-400">Quantum Proof-of-Stake</div>
                   </div>
@@ -2848,21 +3234,27 @@ function TranscendentApp() {
 
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500"></div>
-      </div>}>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500"></div>
+          </div>
+        }
+      >
         <QueryClientProvider client={superQueryClient}>
           <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black text-white overflow-hidden">
             <SuperAISecondBrainApp />
-            
+
             {/* =============================================
                 TRANSCENDENT CONSCIOUSNESS INTERFACES
                 ============================================= */}
-            
+
             {/* Consciousness Expansion Interface */}
             <ConsciousnessExpansionInterface
               isOpen={superUIState.isConsciousnessExpanderOpen}
-              onClose={() => setSuperUIState(prev => ({ ...prev, isConsciousnessExpanderOpen: false }))}
+              onClose={() =>
+                setSuperUIState(prev => ({ ...prev, isConsciousnessExpanderOpen: false }))
+              }
             />
 
             {/* Consciousness Computing Hub - temporarily disabled */}
@@ -2888,7 +3280,9 @@ function TranscendentApp() {
             {/* Quick Access Transcendent Controls */}
             <div className="fixed bottom-6 right-6 z-50 space-y-3">
               <button
-                onClick={() => setSuperUIState(prev => ({ ...prev, isConsciousnessExpanderOpen: true }))}
+                onClick={() =>
+                  setSuperUIState(prev => ({ ...prev, isConsciousnessExpanderOpen: true }))
+                }
                 className="w-14 h-14 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-300 shadow-lg"
                 title="Consciousness Expansion"
               >
