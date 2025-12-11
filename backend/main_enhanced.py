@@ -2948,9 +2948,9 @@ async def get_calendar_events(
                         "end_at": event['end_time'].isoformat() if event['end_time'] else None,
                         "location": event['location'],
                         "attendees": json.loads(event['attendees']) if event['attendees'] else [],
-                        "user_id": current_user['id'],
-                        "created_at": event['created_at'].isoformat(),
-                        "updated_at": event['updated_at'].isoformat(),
+                        "user_id": user_id,
+                        "created_at": event['created_at'].isoformat() if event['created_at'] else None,
+                        "updated_at": event['updated_at'].isoformat() if event['updated_at'] else None,
                         "type": "event"
                     })
                 
@@ -2985,7 +2985,7 @@ async def get_calendar_events(
                                     "end_at": due_datetime.isoformat(),
                                     "location": None,
                                     "attendees": [],
-                                    "user_id": current_user['id'],
+                                    "user_id": user_id,
                                     "created_at": task['created_at'].isoformat() if task['created_at'] else None,
                                     "updated_at": task['updated_at'].isoformat() if task['updated_at'] else None,
                                     "type": "task",
@@ -2999,22 +2999,68 @@ async def get_calendar_events(
         
         # Fallback to memory storage
         events = []
+        now_iso = datetime.now(timezone.utc).isoformat()
+        
         for event_id, event in memory_storage.get('events', {}).items():
-            events.append(event)
+            # Ensure all dates are valid ISO strings
+            event_copy = event.copy()
+            for date_field in ['start_at', 'end_at', 'created_at', 'updated_at']:
+                if date_field in event_copy:
+                    value = event_copy[date_field]
+                    if value is None or (isinstance(value, str) and value.strip() == ''):
+                        event_copy[date_field] = now_iso
+                    elif isinstance(value, str):
+                        try:
+                            # Validate it's a proper ISO string
+                            datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        except (ValueError, AttributeError):
+                            event_copy[date_field] = now_iso
+            events.append(event_copy)
         
         for task_id, task in memory_storage.get('tasks', {}).items():
             if task.get('due_date'):
+                # Ensure due_date is a valid ISO string
+                due_date_value = task['due_date']
+                if isinstance(due_date_value, str):
+                    try:
+                        datetime.fromisoformat(due_date_value.replace('Z', '+00:00'))
+                        due_date_iso = due_date_value
+                    except (ValueError, AttributeError):
+                        due_date_iso = now_iso
+                else:
+                    due_date_iso = now_iso
+                
+                # Ensure created_at and updated_at are valid ISO strings
+                created_at = task.get('created_at') or now_iso
+                updated_at = task.get('updated_at') or now_iso
+                
+                if isinstance(created_at, str):
+                    try:
+                        datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    except (ValueError, AttributeError):
+                        created_at = now_iso
+                else:
+                    created_at = now_iso
+                    
+                if isinstance(updated_at, str):
+                    try:
+                        datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                    except (ValueError, AttributeError):
+                        updated_at = now_iso
+                else:
+                    updated_at = now_iso
+                
                 task_event = {
                     "id": f"task-{task_id}",
                     "title": f"📋 {task['title']}",
                     "description": task.get('description', ''),
-                    "start_at": task['due_date'],
-                    "end_at": task['due_date'],
+                    "start_at": due_date_iso,
+                    "end_at": due_date_iso,
                     "location": None,
                     "attendees": [],
-                    "user_id": current_user['id'],
-                    "created_at": task.get('created_at'),
-                    "updated_at": task.get('updated_at'),
+                    "user_id": user_id,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
                     "type": "task",
                     "priority": task.get('priority', 'medium')
                 }
