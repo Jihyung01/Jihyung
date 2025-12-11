@@ -1811,7 +1811,6 @@ async def upload_avatar(file: UploadFile = File(...), current_user: dict = Depen
 
 @app.get("/api/notes", response_model=List[NoteResponse])
 async def get_notes(
-    current_user: dict = Depends(get_current_user),
     folder: Optional[str] = None,
     tags: Optional[str] = None,
     search: Optional[str] = None,
@@ -1821,7 +1820,7 @@ async def get_notes(
 ):
     """Get notes with advanced filtering - cloud storage with memory fallback"""
     try:
-        user_id = current_user['id']
+        user_id = DEFAULT_USER_ID
         
         # Try cloud database first
         if db_pool:
@@ -4780,53 +4779,6 @@ async def delete_task(
 
 
 # Note endpoints
-@app.get("/api/notes")
-async def get_notes():
-    """Get all notes for the current user"""
-    try:
-        # Use default user ID for public access
-        user_id = DEFAULT_USER_ID
-        
-        # Always try database first for data persistence
-        if db_pool is not None:
-            async with db_pool.acquire() as conn:
-                query = """
-                SELECT id, title, content, tags, category, color, is_pinned, is_archived, 
-                       created_at, updated_at, user_id
-                FROM notes 
-                WHERE user_id = $1 
-                ORDER BY created_at DESC
-                """
-                notes = await conn.fetch(query, uuid.UUID(user_id))
-                
-                result = []
-                for note in notes:
-                    note_dict = {
-                        'id': str(note['id']),
-                        'title': note['title'],
-                        'content': note['content'],
-                        'tags': json.loads(note['tags']) if note['tags'] else [],
-                        'category': note['category'],
-                        'color': note['color'],
-                        'is_pinned': note['is_pinned'],
-                        'is_archived': note['is_archived'],
-                        'created_at': note['created_at'].isoformat() if note['created_at'] else None,
-                        'updated_at': note['updated_at'].isoformat() if note['updated_at'] else None,
-                        'user_id': str(note['user_id'])
-                    }
-                    result.append(note_dict)
-                
-                logger.info(f"✅ Retrieved {len(result)} notes from cloud for user {user_id}")
-                return result
-        
-        # Fallback to memory storage if database is not available
-        user_notes = memory_storage.get('notes', {}).get(str(user_id), [])
-        logger.info(f"📚 Retrieved {len(user_notes)} notes from memory storage for user {user_id}")
-        return user_notes
-            
-    except Exception as e:
-        logger.error(f"❌ Error retrieving notes: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve notes: {str(e)}")
 
 
 @app.post("/api/notes")
@@ -5047,51 +4999,6 @@ async def update_note(
         logger.error(f"❌ Error updating note {note_id}: {str(e)}")
         logger.error(f"Exception details: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to update note: {str(e)}")
-
-
-
-# Calendar endpoints  
-@app.get("/api/calendar")
-async def get_calendar_events_v2():
-    """Get all calendar events for the current user"""
-    try:
-        # Use default user ID for public access
-        user_id = DEFAULT_USER_ID
-        
-        if USE_MEMORY_STORAGE:
-            user_events = memory_storage['events'].get(user_id, [])
-            logger.info(f"📅 Retrieved {len(user_events)} events from memory storage for user {user_id}")
-            return user_events
-        else:
-            query = """
-                SELECT * FROM calendar_events 
-                WHERE user_id = $1 
-                ORDER BY start_time ASC
-            """
-            events = await database.fetch_all(query, user_id)
-            
-            result = []
-            for event in events:
-                event_dict = dict(event)
-                event_dict['id'] = str(event_dict['id'])
-                event_dict['user_id'] = str(event_dict['user_id'])
-                # Handle datetime fields
-                if event_dict.get('start_time'):
-                    event_dict['start_time'] = event_dict['start_time'].isoformat()
-                if event_dict.get('end_time'):
-                    event_dict['end_time'] = event_dict['end_time'].isoformat()
-                if event_dict.get('created_at'):
-                    event_dict['created_at'] = event_dict['created_at'].isoformat()
-                if event_dict.get('updated_at'):
-                    event_dict['updated_at'] = event_dict['updated_at'].isoformat()
-                result.append(event_dict)
-            
-            logger.info(f"📅 Retrieved {len(result)} events from database for user {user_id}")
-            return result
-            
-    except Exception as e:
-        logger.error(f"❌ Error retrieving calendar events: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve calendar events: {str(e)}")
 
 
 
