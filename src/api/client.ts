@@ -322,7 +322,41 @@ export const getCalendarEvents = (from: string, to: string) => {
   const toParam =
     to && to !== 'undefined' ? to : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  return getJSON<any[]>(`/calendar?from=${fromParam}&to=${toParam}`)
+  return getJSON<any[]>(`/calendar?from=${fromParam}&to=${toParam}`).then(events => {
+    // Sanitize calendar events - ensure all date fields are valid ISO strings
+    return events.map(event => ({
+      ...event,
+      start_at: sanitizeDate(event.start_at),
+      end_at: sanitizeDate(event.end_at),
+      start_time: sanitizeDate(event.start_time),
+      end_time: sanitizeDate(event.end_time),
+      created_at: sanitizeDate(event.created_at),
+      updated_at: sanitizeDate(event.updated_at),
+      startDate: sanitizeDate(event.startDate),
+      endDate: sanitizeDate(event.endDate),
+      createdAt: sanitizeDate(event.createdAt),
+      updatedAt: sanitizeDate(event.updatedAt),
+    }))
+  })
+}
+
+// Helper to sanitize date values
+function sanitizeDate(value: any): string | undefined {
+  if (!value) return undefined
+  if (typeof value === 'string') {
+    const parsed = new Date(value)
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString()
+    }
+    return new Date().toISOString()
+  }
+  if (typeof value === 'number') {
+    const parsed = new Date(value)
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString()
+    }
+  }
+  return new Date().toISOString()
 }
 
 export const createCalendarEvent = (event: {

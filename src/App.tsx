@@ -111,8 +111,24 @@ const HolographicDisplay = () => {
 // =====================
 const safeToISOString = (date: any): string => {
   try {
+    // Handle string dates
+    if (typeof date === 'string') {
+      const parsed = new Date(date)
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+      return new Date().toISOString()
+    }
+    // Handle Date objects
     if (date instanceof Date && !isNaN(date.getTime())) {
       return date.toISOString()
+    }
+    // Handle numbers (timestamps)
+    if (typeof date === 'number' && !isNaN(date)) {
+      const parsed = new Date(date)
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
     }
     return new Date().toISOString()
   } catch (error) {
@@ -1937,21 +1953,42 @@ function SuperAISecondBrainApp() {
           dependencies: [],
           assignee: undefined,
         })),
-        events: events.map(event => ({
-          id: event.id.toString(),
-          title: event.title,
-          description: event.description,
-          startDate: event.start_at,
-          endDate: event.end_at,
-          isAllDay: false, // Default value as API doesn't provide this
-          location: event.location,
-          attendees: event.attendees || [],
-          reminders: [], // Default empty as API doesn't provide this
-          tags: [], // Default empty as API doesn't provide this
-          createdAt: event.created_at,
-          updatedAt: event.updated_at,
-          recurrence: undefined, // Default as API doesn't provide this
-        })),
+        events: events.map(event => {
+          try {
+            return {
+              id: event.id?.toString() || 'unknown',
+              title: event.title || 'Untitled',
+              description: event.description || '',
+              startDate: safeToISOString(event.start_at || event.startDate),
+              endDate: safeToISOString(event.end_at || event.endDate),
+              isAllDay: false,
+              location: event.location || '',
+              attendees: event.attendees || [],
+              reminders: [],
+              tags: [],
+              createdAt: safeToISOString(event.created_at || event.createdAt),
+              updatedAt: safeToISOString(event.updated_at || event.updatedAt),
+              recurrence: undefined,
+            }
+          } catch (error) {
+            console.warn('Error processing calendar event:', event, error)
+            return {
+              id: 'error',
+              title: 'Invalid Event',
+              description: '',
+              startDate: new Date().toISOString(),
+              endDate: new Date().toISOString(),
+              isAllDay: false,
+              location: '',
+              attendees: [],
+              reminders: [],
+              tags: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              recurrence: undefined,
+            }
+          }
+        }),
         insights: [],
         projects: [],
         teams: [],
